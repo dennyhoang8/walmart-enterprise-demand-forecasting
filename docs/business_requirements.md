@@ -1,268 +1,349 @@
 # Business Requirements Document
 
-# Walmart Enterprise Demand Forecasting and Pricing Platform
+# Walmart Enterprise Demand Forecasting & Decision Intelligence Platform
 
-## 1. Project Overview
+---
 
-This project develops a production-style retail data platform using the publicly available Walmart M5 forecasting dataset and continuously updated external data sources.
+# 1. Project Overview
 
-The platform will combine historical Walmart sales and pricing data with weather, holidays, and economic indicators. The resulting data will be stored in a PostgreSQL data warehouse and used to forecast future product demand.
+## Purpose
 
-The project will also explore pricing scenarios by estimating expected demand and revenue at different proposed prices.
+This project develops an end-to-end enterprise retail analytics platform that integrates historical Walmart sales data with continuously updated external data sources to forecast product demand and evaluate pricing scenarios.
 
-The final system will include automated data ingestion, data transformation, feature engineering, machine learning, an inference API, an interactive dashboard, and containerized deployment.
+The platform demonstrates the complete data lifecycle, including automated data ingestion, data quality validation, data warehousing, feature engineering, machine learning, API deployment, dashboard visualization, and containerized deployment.
 
-## 2. Business Problem
+The project is designed as a portfolio-quality implementation of a modern data engineering and machine learning workflow.
 
-Large retailers must determine how much product demand to expect across thousands of products, stores, and dates.
+---
 
-Demand can change because of factors such as:
+# 2. Business Problem
 
-- Product price
+Retail organizations must forecast customer demand accurately to make informed decisions regarding inventory management, pricing, merchandising, and supply chain operations.
+
+Demand fluctuates due to numerous factors including:
+
+- Historical purchasing behavior
+- Selling price
 - Promotions
 - Holidays
-- Seasonal patterns
-- Store location
 - Weather
 - Inflation
 - Economic conditions
-- Historical purchasing behavior
+- Seasonality
 
-Inaccurate forecasts may lead to:
+Poor forecasting can result in:
 
-- Product stockouts
+- Stock shortages
 - Excess inventory
-- Storage costs
+- Increased storage costs
 - Lost revenue
-- Poor pricing decisions
-- Inefficient supply-chain planning
+- Inefficient pricing strategies
+- Supply chain disruptions
 
-The business needs an automated system that combines historical and continuously updated data to produce timely demand forecasts and pricing recommendations.
+An automated forecasting platform enables retailers to make faster, more informed business decisions.
 
-## 3. Project Goal
+---
 
-Build an end-to-end retail demand forecasting platform that:
+# 3. Project Goals
 
-- Ingests static and dynamic data
-- Cleans and validates incoming data
-- Stores structured data in PostgreSQL
-- Automates ingestion using Apache Airflow
-- Creates time-series and pricing features
-- Predicts future product demand
-- Evaluates potential pricing scenarios
-- Serves predictions through FastAPI
-- Displays results through Streamlit
-- Runs through Docker containers
+The primary goals of this project are to:
 
-## 4. Stakeholders
+- Build a production-style data engineering pipeline
+- Automate ingestion of historical and external data
+- Store structured data inside PostgreSQL
+- Validate incoming data quality
+- Engineer forecasting features
+- Forecast future retail demand
+- Simulate pricing decisions
+- Recommend revenue-maximizing prices
+- Expose predictions through an API
+- Visualize results in an executive dashboard
 
-The primary stakeholders are:
+---
+
+# 4. Stakeholders
+
+The primary stakeholders include:
 
 - Executive Leadership
-- Pricing and Revenue Management Team
+- Pricing Team
 - Supply Chain Team
 - Inventory Planning Team
 - Merchandising Team
-- Store Managers
 - Finance Team
+- Store Operations
 - Data Engineering Team
 - Data Science Team
-- Machine Learning Engineering Team
+- Machine Learning Engineers
 
-## 5. Business Objectives
+---
 
-The main business objectives are:
+# 5. Business Objectives
 
-1. Improve product-demand forecasting.
-2. Support inventory and supply-chain planning.
-3. Identify seasonal and holiday-driven demand patterns.
-4. Measure the relationship between price and product demand.
-5. Estimate revenue under different pricing scenarios.
-6. automate the collection of external business data.
-7. Create a centralized retail data warehouse.
-8. Make forecasts accessible through an API and dashboard.
+The platform should support the following business objectives:
 
-## 6. Key Performance Indicators
+1. Improve demand forecasting accuracy.
+2. Support inventory planning.
+3. Reduce stock shortages.
+4. Reduce excess inventory.
+5. Understand demand seasonality.
+6. Evaluate the relationship between price and demand.
+7. Simulate pricing scenarios.
+8. Estimate expected revenue.
+9. Automate data collection.
+10. Build a centralized analytical data warehouse.
+11. Provide business insights through dashboards.
+12. Serve predictions through a REST API.
 
-### Business KPIs
+---
+
+# 6. Key Performance Indicators (KPIs)
+
+## Business KPIs
 
 - Units Sold
 - Sales Revenue
 - Average Selling Price
+- Inventory Turnover
 - Product Demand Growth
-- Store Sales Growth
 - Category Sales Growth
-- Promotion Lift
-- Estimated Revenue at Recommended Price
+- Store Sales Growth
+- Estimated Revenue
+- Price Recommendation
 
-### Forecasting KPIs
+---
 
-- Mean Absolute Error
-- Root Mean Squared Error
-- Mean Absolute Percentage Error
-- Weighted Root Mean Squared Scaled Error
+## Forecasting KPIs
+
+- Mean Absolute Error (MAE)
+- Root Mean Squared Error (RMSE)
+- Mean Absolute Percentage Error (MAPE)
+- R² Score
 - Forecast Bias
 
-### Data Engineering KPIs
+---
+
+## Data Engineering KPIs
 
 - Pipeline Success Rate
-- Data Freshness
-- Records Processed
-- Duplicate Rate
-- Missing-Value Rate
-- Data Validation Failure Rate
 - ETL Runtime
+- Records Processed
+- Missing Value Rate
+- Duplicate Record Rate
+- Data Validation Failure Rate
+- Data Freshness
 
-## 7. Success Metrics
+---
+
+# 7. Success Criteria
 
 The project will be considered successful when:
 
-- Walmart M5 data is loaded into a structured PostgreSQL warehouse.
-- Dynamic external data is collected automatically.
-- Airflow successfully executes the ingestion pipeline.
-- Data-quality checks detect missing or invalid records.
-- Forecasting models outperform a simple baseline forecast.
-- The system returns demand predictions through FastAPI.
-- The dashboard displays forecasts, pricing scenarios, and pipeline status.
-- The complete system can run using Docker Compose.
-- The project is documented clearly enough for another person to reproduce it.
+- Historical Walmart data is loaded into PostgreSQL.
+- Dynamic external data is automatically collected.
+- Airflow schedules ETL successfully.
+- Data quality validation detects invalid records.
+- Forecasting models outperform baseline forecasts.
+- Pricing simulations execute successfully.
+- Predictions are accessible through FastAPI.
+- Dashboards display meaningful business insights.
+- The application is fully containerized using Docker.
+- Documentation enables another developer to reproduce the project.
 
-## 8. Project Scope
+---
 
-### In Scope
+# 8. Project Scope
 
-- Public Walmart M5 data
-- Weather data
-- Holiday data
-- CPI and inflation-related data
-- Historical sales analysis
-- Historical selling-price analysis
-- PostgreSQL data warehouse
-- Python ETL scripts
-- Apache Airflow orchestration
-- SQL and Pandas feature engineering
-- Demand forecasting
-- Pricing-scenario analysis
+## In Scope
+
+- Walmart M5 Forecasting Dataset
+- Open-Meteo Weather API
+- FRED Economic API
+- US Holiday Calendar
+- PostgreSQL Data Warehouse
+- Python ETL Pipelines
+- Data Quality Validation
+- Apache Airflow
+- SQL Feature Engineering
+- Machine Learning
+- Time-Series Forecasting
+- Pricing Simulation
+- Revenue Optimization
 - FastAPI
-- Streamlit
-- Docker
-- GitHub documentation
+- Streamlit Dashboard
+- Docker Deployment
 
-### Out of Scope
+---
 
-- Access to Walmart internal systems
-- Private Walmart customer data
-- Private Walmart inventory data
-- Real-time modification of Walmart prices
-- Production deployment inside Walmart
-- Claims that the project represents an official Walmart system
-- Guaranteed causal price-elasticity estimates
-- Autonomous business decisions without human review
+## Out of Scope
 
-## 9. Data Sources
+- Walmart internal production systems
+- Customer-level personal information
+- Private inventory systems
+- Real-time Walmart pricing changes
+- Live production deployment
+- Automatic pricing changes in retail systems
+- Official Walmart business decisions
 
-### Static Data
+---
 
-The Walmart M5 dataset will provide:
+# 9. Data Sources
 
-- Historical daily unit sales
-- Product identifiers
-- Product departments
-- Product categories
-- Store identifiers
-- State identifiers
-- Historical weekly selling prices
-- Calendar dates
-- Events and holidays
+## Static Data
+
+### Walmart M5 Dataset
+
+Includes:
+
+- Historical daily sales
+- Product information
+- Store information
+- Categories
+- Departments
+- Calendar information
+- Historical prices
+- Events
 - SNAP indicators
 
-### Dynamic Data
+---
 
-External data sources may include:
+## Dynamic Data
 
-- Weather API data
-- Consumer Price Index
-- Inflation indicators
-- Unemployment indicators
-- Interest-rate indicators
-- U.S. holiday data
+### Open-Meteo
 
-## 10. High-Level Architecture
+- Temperature
+- Rain
+- Snow
+- Wind
+- Humidity
 
-The system will follow this workflow:
+### FRED
 
-Static and Dynamic Data Sources
+- CPI
+- Inflation
+- Interest Rates
+- Unemployment
 
-↓
+### US Holiday Calendar
 
-Apache Airflow ETL Pipeline
+- Federal holidays
+- Holiday names
 
-↓
+---
 
-PostgreSQL Data Warehouse
+# 10. High-Level Architecture
 
-↓
+```
+Static Data
 
-SQL and Pandas Feature Engineering
++
 
-↓
-
-Demand Forecasting Models
-
-↓
-
-Pricing Scenario and Revenue Optimization Engine
+Dynamic APIs
 
 ↓
 
-FastAPI Prediction Service
+Apache Airflow
 
 ↓
 
-Streamlit Dashboard
+Python ETL
 
 ↓
 
-Docker Deployment
+Data Quality Validation
 
-## 11. Assumptions
+↓
 
-- The M5 dataset represents historical Walmart sales but not Walmart's complete modern enterprise data.
-- External data may use different frequencies from the daily sales data.
-- Economic indicators may be monthly or weekly rather than daily.
-- Some pricing and promotion behavior must be inferred from available fields.
-- The project is educational and portfolio-focused.
-- Forecasting accuracy may differ by product, store, and forecast horizon.
-- Pricing recommendations are analytical scenarios rather than actual Walmart business decisions.
+PostgreSQL
 
-## 12. Risks and Limitations
+↓
 
-- The historical dataset does not update continuously.
-- Dynamic external data occurs after the M5 historical period.
-- Historical weather may require separate backfilling.
-- Correlation does not establish causation.
-- Price-elasticity estimates may be biased by promotions and other variables.
-- Large datasets may require memory-efficient processing.
-- Airflow and Docker may create setup complexity.
-- Forecast accuracy may be poor for products with intermittent demand.
-- The system may require aggregation or sampling during early development.
+Advanced SQL
 
-## 13. Planned Deliverables
+↓
+
+Feature Engineering
+
+↓
+
+Forecasting Models
+
+↓
+
+Decision Intelligence
+
+↓
+
+FastAPI
+
+↓
+
+Streamlit
+
+↓
+
+Docker
+```
+
+---
+
+# 11. Assumptions
+
+The project assumes that:
+
+- Historical Walmart data is representative of retail demand patterns.
+- External APIs remain available.
+- Historical and external data can be aligned appropriately.
+- Historical pricing can be used for scenario analysis.
+- Machine learning models can improve upon baseline forecasts.
+- The project is educational and not intended to replicate Walmart's internal systems.
+
+---
+
+# 12. Risks and Limitations
+
+Potential limitations include:
+
+- Historical data does not update automatically.
+- External data frequencies differ from daily sales.
+- Weather history may require additional processing.
+- Correlation does not imply causation.
+- Price elasticity cannot be estimated perfectly from observational data.
+- Large datasets require efficient memory management.
+- Forecast performance may vary across products.
+
+---
+
+# 13. Expected Deliverables
+
+Project deliverables include:
 
 - Business Requirements Document
 - Data Dictionary
-- Data Understanding Notebook
+- Exploratory Data Analysis Notebook
 - Entity Relationship Diagram
 - PostgreSQL Database
-- ETL Scripts
-- Airflow DAGs
-- Data Quality Checks
-- SQL Feature Views
+- ETL Pipeline
+- Data Quality Framework
+- Apache Airflow DAGs
+- SQL Feature Engineering Scripts
 - Forecasting Models
 - Model Evaluation Report
-- Pricing Scenario Engine
+- Pricing Simulation Engine
 - FastAPI Application
 - Streamlit Dashboard
-- Docker Compose Environment
+- Docker Environment
 - Architecture Diagram
-- Final README
+- Technical Documentation
+- Final Project Report
+- GitHub Repository
+
+---
+
+# 14. Disclaimer
+
+This project is an independent educational portfolio project.
+
+It uses the publicly available Walmart M5 forecasting dataset together with publicly accessible external APIs.
+
+The project is not affiliated with, sponsored by, or endorsed by Walmart.
