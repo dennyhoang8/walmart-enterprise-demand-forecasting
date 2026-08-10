@@ -43,16 +43,10 @@ services:
 
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >
-        postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-
       AIRFLOW__WEBSERVER__SECRET_KEY: "walmart-airflow-secret-key-2026"
-
       FRED_API_KEY: ${FRED_API_KEY}
-
       PYTHONPATH: /opt/airflow
 
     volumes:
@@ -91,16 +85,10 @@ services:
 
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >
-        postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-
       AIRFLOW__WEBSERVER__SECRET_KEY: "walmart-airflow-secret-key-2026"
-
       FRED_API_KEY: ${FRED_API_KEY}
-
       PYTHONPATH: /opt/airflow
 
     volumes:
@@ -130,16 +118,10 @@ services:
 
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >
-        postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-
       AIRFLOW__WEBSERVER__SECRET_KEY: "walmart-airflow-secret-key-2026"
-
       FRED_API_KEY: ${FRED_API_KEY}
-
       PYTHONPATH: /opt/airflow
 
     volumes:

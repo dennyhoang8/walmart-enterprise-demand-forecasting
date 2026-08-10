@@ -67,7 +67,7 @@ if __name__ == "__main__":
     print(weather.shape)
 
     weather.to_csv(
-        "data/external/weather_history.csv",
+        "/opt/airflow/data/external/weather_history.csv",
         index=False,
     )
 
