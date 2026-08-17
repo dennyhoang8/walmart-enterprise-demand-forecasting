@@ -4,6 +4,11 @@ import pandas as pd
 from sqlalchemy import text
 
 from etl.database import get_engine
+from etl.transform.transform_dimensions import (
+    transform_products,
+    transform_stores,
+    transform_calendar,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -13,14 +18,14 @@ RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 def load_products() -> None:
     sales = pd.read_csv(
         RAW_DATA_DIR / "sales_train_evaluation.csv",
-        usecols=["item_id", "dept_id", "cat_id"],
+        usecols=[
+            "item_id",
+            "dept_id",
+            "cat_id",
+        ],
     )
 
-    products = (
-        sales[["item_id", "dept_id", "cat_id"]]
-        .drop_duplicates()
-        .sort_values("item_id")
-    )
+    products = transform_products(sales)
 
     engine = get_engine()
 
@@ -38,14 +43,13 @@ def load_products() -> None:
 def load_stores() -> None:
     sales = pd.read_csv(
         RAW_DATA_DIR / "sales_train_evaluation.csv",
-        usecols=["store_id", "state_id"],
+        usecols=[
+            "store_id",
+            "state_id",
+        ],
     )
 
-    stores = (
-        sales[["store_id", "state_id"]]
-        .drop_duplicates()
-        .sort_values("store_id")
-    )
+    stores = transform_stores(sales)
 
     engine = get_engine()
 
@@ -61,20 +65,11 @@ def load_stores() -> None:
 
 
 def load_calendar() -> None:
-    calendar = pd.read_csv(RAW_DATA_DIR / "calendar.csv")
-
-    calendar["date"] = pd.to_datetime(calendar["date"]).dt.date
-
-    calendar = calendar.rename(
-        columns={
-            "snap_CA": "snap_ca",
-            "snap_TX": "snap_tx",
-            "snap_WI": "snap_wi",
-        }
+    calendar = pd.read_csv(
+        RAW_DATA_DIR / "calendar.csv"
     )
 
-    for column in ["snap_ca", "snap_tx", "snap_wi"]:
-        calendar[column] = calendar[column].astype(bool)
+    calendar = transform_calendar(calendar)
 
     engine = get_engine()
 
@@ -86,7 +81,9 @@ def load_calendar() -> None:
         method="multi",
     )
 
-    print(f"Loaded {len(calendar):,} calendar rows.")
+    print(
+        f"Loaded {len(calendar):,} calendar rows."
+    )
 
 
 def clear_dimension_tables() -> None:

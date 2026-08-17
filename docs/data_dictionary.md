@@ -58,3 +58,114 @@ Same structure as `sales_train_validation.csv`, but it contains additional sales
 - `sales.item_id` connects to `sell_prices.item_id`.
 - `sales.store_id` connects to `sell_prices.store_id`.
 - Each sales row represents one item sold at one store over time.
+
+## 7. dim_calendar
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| date | Date | Calendar date | No | Primary calendar date used for time-based analysis |
+| d | String | M5 day identifier | No | Links M5 sales days to calendar dates |
+| wm_yr_wk | Integer | Walmart year-week identifier | No | Links calendar dates to weekly product prices |
+| weekday | String | Weekday name | No | Supports weekly seasonality analysis |
+| wday | Small Integer | Numeric weekday | No | Encoded weekday |
+| month | Small Integer | Calendar month | No | Supports monthly seasonality |
+| year | Small Integer | Calendar year | No | Supports yearly analysis |
+| event_name_1 | String | Primary event or holiday | Yes | Identifies events that may affect demand |
+| event_type_1 | String | Primary event category | Yes | Classifies the primary event |
+| event_name_2 | String | Secondary event | Yes | Identifies an additional event on the same date |
+| event_type_2 | String | Secondary event category | Yes | Classifies the secondary event |
+| snap_ca | Boolean | California SNAP indicator | No | Indicates California SNAP participation date |
+| snap_tx | Boolean | Texas SNAP indicator | No | Indicates Texas SNAP participation date |
+| snap_wi | Boolean | Wisconsin SNAP indicator | No | Indicates Wisconsin SNAP participation date |
+
+---
+
+## 8. dim_economic_series
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| series_id | String | Economic series identifier | No | Identifies the FRED economic indicator |
+| series_name | String | Economic series name | No | Human-readable economic indicator name |
+| frequency | String | Observation frequency | No | Indicates how frequently the series is reported |
+| units | String | Measurement units | Yes | Describes the units of the economic value |
+
+---
+
+## 9. dim_product
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| item_id | String | Walmart product identifier | No | Uniquely identifies a product |
+| dept_id | String | Department identifier | No | Groups products into departments |
+| cat_id | String | Category identifier | No | Groups products into major categories |
+
+---
+
+## 10. dim_store
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| store_id | String | Walmart store identifier | No | Uniquely identifies a store |
+| state_id | String | State identifier | No | Identifies the state containing the store |
+
+---
+
+## 11. fact_sales
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| date | Date | Date of sales observation | No | Identifies when the sales occurred |
+| item_id | String | Product identifier | No | Identifies the product sold |
+| store_id | String | Store identifier | No | Identifies where the sale occurred |
+| units_sold | Integer | Number of units sold | No | Primary demand variable used for forecasting |
+
+---
+
+## 12. fact_prices
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| store_id | String | Store identifier | No | Identifies the store offering the product |
+| item_id | String | Product identifier | No | Identifies the priced product |
+| wm_yr_wk | Integer | Walmart year-week identifier | No | Identifies the week for the recorded price |
+| sell_price | Numeric | Product selling price | No | Historical product price used for pricing and demand analysis |
+
+---
+
+## 13. fact_economic_indicator
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| series_id | String | Economic series identifier | No | Links the observation to an economic indicator |
+| observation_date | Date | Date of economic observation | No | Identifies when the economic value was measured |
+| value | Numeric | Economic indicator value | Yes | Provides external economic context for demand forecasting |
+
+---
+
+## 14. fact_weather
+
+| Column | Data Type | Description | Nullable | Business Meaning |
+|---|---|---|---|---|
+| date | Date | Weather observation date | No | Links weather conditions to sales dates |
+| state_id | String | State identifier | No | Associates weather with Walmart store locations |
+| temperature_max | Numeric | Maximum daily temperature | Yes | Captures potential temperature effects on demand |
+| temperature_min | Numeric | Minimum daily temperature | Yes | Captures potential temperature effects on demand |
+| precipitation | Numeric | Daily precipitation | Yes | Measures rain/precipitation conditions |
+| snowfall | Numeric | Daily snowfall | Yes | Measures snowfall conditions |
+| wind_speed_max | Numeric | Maximum daily wind speed | Yes | Captures severe or unusual weather conditions |
+
+---
+
+## 15. Warehouse Relationships
+
+- `fact_sales.item_id` → `dim_product.item_id`
+- `fact_sales.store_id` → `dim_store.store_id`
+- `fact_sales.date` → `dim_calendar.date`
+- `fact_prices.item_id` → `dim_product.item_id`
+- `fact_prices.store_id` → `dim_store.store_id`
+- `fact_prices.wm_yr_wk` → `dim_calendar.wm_yr_wk`
+- `fact_weather.state_id` → `dim_store.state_id`
+- `fact_weather.date` → `dim_calendar.date`
+- `fact_economic_indicator.series_id` → `dim_economic_series.series_id`
+
+The warehouse separates descriptive dimension tables from high-volume fact tables, supporting scalable SQL analytics, feature engineering, and demand forecasting.

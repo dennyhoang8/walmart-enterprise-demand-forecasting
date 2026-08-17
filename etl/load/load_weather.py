@@ -4,6 +4,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from etl.database import get_engine
+from etl.transform.transform_weather import transform_weather
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -14,44 +15,23 @@ def clear_weather_table() -> None:
     engine = get_engine()
 
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE fact_weather;"))
+        connection.execute(
+            text("TRUNCATE TABLE fact_weather;")
+        )
 
     print("Cleared fact_weather.")
 
 
-def load_weather() -> None:
-    weather = pd.read_csv(WEATHER_FILE)
-
-    weather = weather.rename(
-        columns={
-            "time": "date",
-            "temperature_2m_max": "temperature_max",
-            "temperature_2m_min": "temperature_min",
-            "precipitation_sum": "precipitation",
-            "snowfall_sum": "snowfall",
-            "wind_speed_10m_max": "wind_speed_max",
-        }
-    )
-
-    weather["date"] = pd.to_datetime(weather["date"]).dt.date
-
-    expected_columns = [
-        "date",
-        "state_id",
-        "temperature_max",
-        "temperature_min",
-        "precipitation",
-        "snowfall",
-        "wind_speed_max",
-    ]
-
-    weather = weather[expected_columns].copy()
-
+def validate_weather(weather: pd.DataFrame) -> None:
     if weather["date"].isnull().any():
-        raise ValueError("Weather data contains invalid dates.")
+        raise ValueError(
+            "Weather data contains invalid dates."
+        )
 
     if weather["state_id"].isnull().any():
-        raise ValueError("Weather data contains missing state IDs.")
+        raise ValueError(
+            "Weather data contains missing state IDs."
+        )
 
     duplicate_count = weather.duplicated(
         subset=["date", "state_id"]
@@ -59,14 +39,33 @@ def load_weather() -> None:
 
     if duplicate_count > 0:
         raise ValueError(
-            f"Weather data contains {duplicate_count} duplicate keys."
+            f"Weather data contains "
+            f"{duplicate_count} duplicate keys."
         )
 
     if (weather["precipitation"].dropna() < 0).any():
-        raise ValueError("Weather data contains negative precipitation.")
+        raise ValueError(
+            "Weather data contains negative precipitation."
+        )
 
     if (weather["snowfall"].dropna() < 0).any():
-        raise ValueError("Weather data contains negative snowfall.")
+        raise ValueError(
+            "Weather data contains negative snowfall."
+        )
+
+
+def load_weather() -> None:
+    weather = pd.read_csv(
+        WEATHER_FILE
+    )
+
+    weather = transform_weather(
+        weather
+    )
+
+    validate_weather(
+        weather
+    )
 
     engine = get_engine()
 
@@ -79,7 +78,9 @@ def load_weather() -> None:
         method="multi",
     )
 
-    print(f"Loaded {len(weather):,} weather rows.")
+    print(
+        f"Loaded {len(weather):,} weather rows."
+    )
 
 
 if __name__ == "__main__":

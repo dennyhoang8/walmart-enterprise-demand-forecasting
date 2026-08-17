@@ -4,6 +4,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from etl.database import get_engine
+from etl.transform.transform_economic import transform_economic
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -63,44 +64,50 @@ def load_economic_series() -> None:
         method="multi",
     )
 
-    print(f"Loaded {len(SERIES_METADATA):,} economic series.")
-
-
-def load_economic_indicators() -> None:
-    economic_data = pd.read_csv(FRED_FILE)
-
-    economic_data = economic_data.rename(
-        columns={
-            "date": "observation_date",
-        }
+    print(
+        f"Loaded {len(SERIES_METADATA):,} economic series."
     )
 
-    economic_data["observation_date"] = pd.to_datetime(
-        economic_data["observation_date"]
-    ).dt.date
 
-    economic_data = economic_data[
-        [
-            "series_id",
-            "observation_date",
-            "value",
-        ]
-    ].copy()
-
+def validate_economic_data(
+    economic_data: pd.DataFrame,
+) -> None:
     if economic_data["series_id"].isnull().any():
-        raise ValueError("Missing series IDs found.")
+        raise ValueError(
+            "Missing series IDs found."
+        )
 
     if economic_data["observation_date"].isnull().any():
-        raise ValueError("Invalid observation dates found.")
+        raise ValueError(
+            "Invalid observation dates found."
+        )
 
     duplicate_count = economic_data.duplicated(
-        subset=["series_id", "observation_date"]
+        subset=[
+            "series_id",
+            "observation_date",
+        ]
     ).sum()
 
     if duplicate_count > 0:
         raise ValueError(
-            f"Found {duplicate_count:,} duplicate economic records."
+            f"Found {duplicate_count:,} "
+            f"duplicate economic records."
         )
+
+
+def load_economic_indicators() -> None:
+    economic_data = pd.read_csv(
+        FRED_FILE
+    )
+
+    economic_data = transform_economic(
+        economic_data
+    )
+
+    validate_economic_data(
+        economic_data
+    )
 
     engine = get_engine()
 
@@ -113,7 +120,10 @@ def load_economic_indicators() -> None:
         method="multi",
     )
 
-    print(f"Loaded {len(economic_data):,} economic observations.")
+    print(
+        f"Loaded {len(economic_data):,} "
+        f"economic observations."
+    )
 
 
 if __name__ == "__main__":
