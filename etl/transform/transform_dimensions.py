@@ -1,5 +1,17 @@
+# ================================
+# 1. IMPORT TOOLS
+# Load Pandas so we can work with
+# and transform DataFrames.
+# ================================
+
 import pandas as pd
 
+
+# ================================
+# 2. TRANSFORM PRODUCT DATA
+# Take raw product information from the sales
+# DataFrame and prepare it for dim_product.
+# ================================
 
 def transform_products(
     sales: pd.DataFrame,
@@ -9,6 +21,10 @@ def transform_products(
     the warehouse-ready dim_product format.
     """
 
+    # Keep only the product-related columns,
+    # remove duplicate products,
+    # sort products by item_id,
+    # and reset the row numbers.
     products = (
         sales[
             [
@@ -22,8 +38,15 @@ def transform_products(
         .reset_index(drop=True)
     )
 
+    # Give the finished product DataFrame back.
     return products
 
+
+# ================================
+# 3. TRANSFORM STORE DATA
+# Take raw store information from the sales
+# DataFrame and prepare it for dim_store.
+# ================================
 
 def transform_stores(
     sales: pd.DataFrame,
@@ -33,6 +56,10 @@ def transform_stores(
     the warehouse-ready dim_store format.
     """
 
+    # Keep only the store-related columns,
+    # remove duplicate stores,
+    # sort stores by store_id,
+    # and reset the row numbers.
     stores = (
         sales[
             [
@@ -45,8 +72,15 @@ def transform_stores(
         .reset_index(drop=True)
     )
 
+    # Give the finished store DataFrame back.
     return stores
 
+
+# ================================
+# 4. TRANSFORM CALENDAR DATA
+# Take the raw M5 calendar DataFrame
+# and prepare it for dim_calendar.
+# ================================
 
 def transform_calendar(
     calendar: pd.DataFrame,
@@ -56,12 +90,18 @@ def transform_calendar(
     the warehouse-ready dim_calendar format.
     """
 
+    # Make a separate copy so we do not
+    # accidentally change the original DataFrame.
     calendar = calendar.copy()
 
+    # Convert the date column into
+    # proper Python date values.
     calendar["date"] = pd.to_datetime(
         calendar["date"]
     ).dt.date
 
+    # Rename the SNAP columns so their names
+    # match the PostgreSQL table column names.
     calendar = calendar.rename(
         columns={
             "snap_CA": "snap_ca",
@@ -70,6 +110,8 @@ def transform_calendar(
         }
     )
 
+    # Loop through each SNAP column
+    # and convert its values to True/False.
     for column in [
         "snap_ca",
         "snap_tx",
@@ -77,4 +119,5 @@ def transform_calendar(
     ]:
         calendar[column] = calendar[column].astype(bool)
 
+    # Give the finished calendar DataFrame back.
     return calendar
