@@ -23,12 +23,12 @@ def transform_prices(
 
 
     # ================================
-    # 3. DEFINE NEEDED COLUMNS
-    # Create a list of the exact columns
-    # that fact_prices needs.
+    # 3. DEFINE REQUIRED COLUMNS
+    # These columns must exist before
+    # transformation can continue.
     # ================================
 
-    expected_columns = [
+    required_columns = [
         "store_id",
         "item_id",
         "wm_yr_wk",
@@ -37,18 +37,53 @@ def transform_prices(
 
 
     # ================================
-    # 4. KEEP ONLY NEEDED COLUMNS
-    # Select the expected columns from the
-    # raw price DataFrame and make a copy.
+    # 4. CHECK REQUIRED COLUMNS
+    # Stop early if the source schema changes
+    # and an expected column is missing.
+    # ================================
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in prices.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"Missing price columns: {missing_columns}"
+        )
+
+
+    # ================================
+    # 5. KEEP ONLY NEEDED COLUMNS
+    # Select only the columns required
+    # by fact_prices and make a copy.
     # ================================
 
     prices = prices[
-        expected_columns
+        required_columns
     ].copy()
 
 
     # ================================
-    # 5. RETURN TRANSFORMED DATA
+    # 6. CONVERT DATA TYPES
+    # Make sure numeric warehouse fields
+    # are stored using numeric types.
+    # ================================
+
+    prices["wm_yr_wk"] = pd.to_numeric(
+        prices["wm_yr_wk"],
+        errors="raise",
+    ).astype("int64")
+
+    prices["sell_price"] = pd.to_numeric(
+        prices["sell_price"],
+        errors="raise",
+    )
+
+
+    # ================================
+    # 7. RETURN TRANSFORMED DATA
     # Give the finished price DataFrame
     # back to the code that called this function.
     # ================================

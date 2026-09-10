@@ -21,9 +21,60 @@ def transform_economic(
     warehouse-ready fact_economic_indicator format.
     """
 
+    # ================================
+    # 3. DEFINE REQUIRED COLUMNS
+    # These columns must exist in the extracted
+    # FRED data before transformation can continue.
+    # ================================
+
+    required_columns = [
+        "date",
+        "value",
+        "series_id",
+    ]
+
 
     # ================================
-    # 3. RENAME THE DATE COLUMN
+    # 4. CHECK REQUIRED COLUMNS
+    # Stop early with a clear error if the
+    # extracted FRED schema changes.
+    # ================================
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in economic_data.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"Missing economic columns: {missing_columns}"
+        )
+
+
+    # ================================
+    # 5. COPY THE DATA
+    # Work on a separate DataFrame so the
+    # original extracted data is not modified.
+    # ================================
+
+    economic_data = economic_data.copy()
+
+
+    # ================================
+    # 6. CONVERT VALUE TO NUMERIC
+    # Notebook 01 showed value is already numeric,
+    # but this makes the transform more robust.
+    # ================================
+
+    economic_data["value"] = pd.to_numeric(
+        economic_data["value"],
+        errors="raise",
+    )
+
+
+    # ================================
+    # 7. RENAME THE DATE COLUMN
     # Change "date" to "observation_date"
     # so it matches the database table.
     # ================================
@@ -36,18 +87,19 @@ def transform_economic(
 
 
     # ================================
-    # 4. CONVERT TO PROPER DATE FORMAT
+    # 8. CONVERT TO PROPER DATE FORMAT
     # Convert observation_date into real
     # date values instead of leaving it as text.
     # ================================
 
     economic_data["observation_date"] = pd.to_datetime(
-        economic_data["observation_date"]
+        economic_data["observation_date"],
+        errors="raise",
     ).dt.date
 
 
     # ================================
-    # 5. KEEP ONLY NEEDED COLUMNS
+    # 9. KEEP ONLY NEEDED COLUMNS
     # Select only the columns that belong
     # in fact_economic_indicator.
     # ================================
@@ -62,7 +114,7 @@ def transform_economic(
 
 
     # ================================
-    # 6. RETURN TRANSFORMED DATA
+    # 10. RETURN TRANSFORMED DATA
     # Give the finished economic DataFrame
     # back to the code that called this function.
     # ================================

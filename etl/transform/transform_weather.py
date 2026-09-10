@@ -13,7 +13,9 @@ import pandas as pd
 # and prepare it for fact_weather.
 # ================================
 
-def transform_weather(weather: pd.DataFrame) -> pd.DataFrame:
+def transform_weather(
+    weather: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Transform raw weather API data into the
     warehouse-ready fact_weather format.
@@ -21,9 +23,53 @@ def transform_weather(weather: pd.DataFrame) -> pd.DataFrame:
 
 
     # ================================
-    # 3. RENAME WEATHER COLUMNS
+    # 3. DEFINE REQUIRED COLUMNS
+    # These columns must exist in the
+    # extracted weather dataset.
+    # ================================
+
+    required_columns = [
+        "time",
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "precipitation_sum",
+        "snowfall_sum",
+        "wind_speed_10m_max",
+        "state_id",
+    ]
+
+
+    # ================================
+    # 4. CHECK REQUIRED COLUMNS
+    # Stop early if the extracted weather
+    # schema changes or a column is missing.
+    # ================================
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in weather.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"Missing weather columns: {missing_columns}"
+        )
+
+
+    # ================================
+    # 5. COPY THE DATA
+    # Work on a separate copy so the
+    # original DataFrame is not modified.
+    # ================================
+
+    weather = weather.copy()
+
+
+    # ================================
+    # 6. RENAME WEATHER COLUMNS
     # Change the original API column names
-    # into simpler names used by our database.
+    # into simpler database column names.
     # ================================
 
     weather = weather.rename(
@@ -39,20 +85,42 @@ def transform_weather(weather: pd.DataFrame) -> pd.DataFrame:
 
 
     # ================================
-    # 4. CONVERT DATE FORMAT
-    # Convert the date column into
-    # proper Python date values.
+    # 7. CONVERT DATE FORMAT
+    # Convert the weather date from text
+    # into a proper Python date value.
     # ================================
 
     weather["date"] = pd.to_datetime(
-        weather["date"]
+        weather["date"],
+        errors="raise",
     ).dt.date
 
 
     # ================================
-    # 5. DEFINE NEEDED COLUMNS
-    # Create a list of the exact columns
-    # that fact_weather needs.
+    # 8. CONVERT WEATHER VALUES TO NUMERIC
+    # Make sure all weather measurements are
+    # stored using numeric data types.
+    # ================================
+
+    numeric_columns = [
+        "temperature_max",
+        "temperature_min",
+        "precipitation",
+        "snowfall",
+        "wind_speed_max",
+    ]
+
+    for column in numeric_columns:
+        weather[column] = pd.to_numeric(
+            weather[column],
+            errors="raise",
+        )
+
+
+    # ================================
+    # 9. DEFINE FINAL COLUMNS
+    # These are the exact columns required
+    # by fact_weather.
     # ================================
 
     expected_columns = [
@@ -67,9 +135,8 @@ def transform_weather(weather: pd.DataFrame) -> pd.DataFrame:
 
 
     # ================================
-    # 6. KEEP ONLY NEEDED COLUMNS
-    # Select the expected columns and make
-    # a separate copy of the DataFrame.
+    # 10. KEEP ONLY NEEDED COLUMNS
+    # Select the warehouse-ready columns.
     # ================================
 
     weather = weather[
@@ -78,7 +145,7 @@ def transform_weather(weather: pd.DataFrame) -> pd.DataFrame:
 
 
     # ================================
-    # 7. RETURN TRANSFORMED DATA
+    # 11. RETURN TRANSFORMED DATA
     # Give the finished weather DataFrame
     # back to the code that called this function.
     # ================================
