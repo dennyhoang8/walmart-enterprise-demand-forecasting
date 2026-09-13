@@ -192,7 +192,7 @@ fact_prices
 fact_weather
 ```
 
-This separates raw storage and analytical processing from the machine learning layer and better represents how data would be managed in a production analytics environment.
+This separates structured data storage from the machine learning layer and better represents how data can be managed in a production-oriented analytics environment.
 
 ---
 
@@ -227,7 +227,7 @@ Analysis includes:
 - Event and holiday effects
 - Time-series patterns
 
-The notebooks are designed to move progressively from understanding the raw data toward a production-ready forecasting pipeline.
+The notebooks progressively move from understanding the raw data toward feature engineering, forecasting, model evaluation, and pricing analysis.
 
 ---
 
@@ -235,9 +235,9 @@ The notebooks are designed to move progressively from understanding the raw data
 
 Historical sales and external information are transformed into model-ready features.
 
-Examples include:
-
 ### Time Features
+
+Examples include:
 
 ```text
 day of week
@@ -251,7 +251,7 @@ weekend indicators
 
 Historical demand values are shifted backward to provide the model with information about previous sales behavior.
 
-Examples:
+Examples include:
 
 ```text
 lag_7
@@ -260,13 +260,11 @@ lag_28
 
 ### Rolling Features
 
-Rolling statistics summarize recent demand behavior.
-
-Examples include rolling averages and related historical demand measures.
+Rolling statistics summarize recent demand behavior and provide the model with information about recent sales trends.
 
 ### Calendar Features
 
-Features incorporate:
+Features incorporate information such as:
 
 - Events
 - Holidays
@@ -290,7 +288,7 @@ The resulting model-ready feature dataset is used by the forecasting pipeline.
 
 The forecasting component predicts expected unit demand at the product/store/date level.
 
-The final forecasting workflow uses a **Poisson Histogram Gradient Boosting** approach designed for non-negative count-like demand data.
+The final forecasting workflow uses a **Poisson Histogram Gradient Boosting** approach designed for non-negative, count-like demand data.
 
 The model learns relationships between historical demand and features such as:
 
@@ -323,13 +321,13 @@ Lower is better.
 
 ### RMSE — Root Mean Squared Error
 
-Measures prediction error while penalizing large mistakes more heavily than MAE.
+Measures prediction error while penalizing larger mistakes more heavily than MAE.
 
 Lower is better.
 
 The forecasting workflow also compares model performance against simpler baseline predictions.
 
-This helps determine whether the machine learning model actually provides additional forecasting value.
+This helps determine whether the machine learning model provides additional forecasting value beyond simpler forecasting approaches.
 
 ---
 
@@ -339,7 +337,7 @@ Demand predictions are passed into a scenario-based pricing engine.
 
 The pricing system evaluates controlled price changes and estimates their effect on expected demand and revenue.
 
-For each product/date combination, the system can recommend:
+For each eligible product/date combination, the system can recommend:
 
 ```text
 Increase
@@ -362,7 +360,7 @@ Recommendations must meet minimum simulated revenue-improvement requirements bef
 
 ## Pricing Results
 
-During the latest full pricing run:
+During the completed pricing run:
 
 ```text
 Pricing recommendations: 326,838
@@ -414,7 +412,7 @@ The API includes endpoints for:
 /recommend-price
 ```
 
-Example architecture:
+The application architecture is:
 
 ```text
 Client
@@ -448,7 +446,7 @@ Store
 Date
 ```
 
-and request a demand forecast.
+and request a demand forecast or pricing recommendation.
 
 The dashboard can display:
 
@@ -510,47 +508,60 @@ Conceptually:
 └─────────────────────┘
 ```
 
-Docker provides a reproducible environment for running the infrastructure and application services.
+Docker provides a reproducible environment for running the project's infrastructure and application services.
 
 ---
 
 ## Running the Project
 
-### 1. Clone the repository
+### 1. Clone the Repository
 
 ```bash
 git clone <repository-url>
 cd walmart-enterprise-demand-forecasting
 ```
 
-### 2. Configure environment variables
+### 2. Configure Environment Variables
 
-Create a `.env` file containing the required environment variables.
+Copy `.env.example` to a local `.env` file and provide the required values.
 
 Example:
 
 ```text
-POSTGRES_USER=...
-POSTGRES_PASSWORD=...
-POSTGRES_DB=...
-FRED_API_KEY=...
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password_here
+POSTGRES_DB=walmart_forecasting
+FRED_API_KEY=your_fred_api_key_here
 ```
 
-Do **not** commit the `.env` file to GitHub.
+The real `.env` file is excluded from Git and should never be committed.
 
-### 3. Build and start Docker
+### 3. Prepare Required Data and Model Artifacts
+
+Large raw datasets, processed feature files, generated outputs, and trained model binaries are intentionally excluded from GitHub.
+
+The local application may require generated artifacts such as:
+
+```text
+data/processed/features_CA_1_200_items.csv
+models/demand_forecast_model.joblib
+```
+
+These artifacts are produced locally through the project's data preparation and modeling workflow.
+
+### 4. Build and Start Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-### 4. Verify containers
+### 5. Verify Containers
 
 ```bash
 docker compose ps
 ```
 
-Expected services include:
+Expected running services include:
 
 ```text
 walmart_postgres
@@ -560,7 +571,7 @@ walmart_api
 walmart_streamlit
 ```
 
-### 5. Open the applications
+### 6. Open the Applications
 
 ```text
 Streamlit:
@@ -573,13 +584,35 @@ Airflow:
 localhost:8080
 ```
 
-### 6. Stop the environment
+### 7. Stop the Environment
 
 ```bash
 docker compose down
 ```
 
 The PostgreSQL Docker volume persists unless it is explicitly removed.
+
+---
+
+## Project Demonstration
+
+### Airflow ETL Pipeline
+
+Apache Airflow orchestrates the extraction, loading, and validation of external data sources used by the forecasting pipeline.
+
+![Airflow ETL Pipeline](docs/images/airflow_pipeline.png)
+
+### Demand Forecasting Application
+
+The Streamlit application communicates with the FastAPI backend to generate item-level demand predictions using the trained Poisson Histogram Gradient Boosting model.
+
+![Demand Forecast](docs/images/streamlit_forecast.png)
+
+### Dynamic Pricing Recommendation
+
+The pricing engine evaluates forecasted demand, current price, price elasticity, expected revenue, and pricing guardrails before recommending a pricing action.
+
+![Dynamic Pricing Recommendation](docs/images/streamlit_pricing.png)
 
 ---
 
@@ -612,13 +645,24 @@ walmart-enterprise-demand-forecasting/
 │
 ├── data/
 │   ├── raw/
-│   ├── processed/
-│   └── ...
+│   ├── external/
+│   └── processed/
+│
+├── database/
+│   ├── create_tables.sql
+│   ├── validate_dimensions.sql
+│   └── validate_schema.sql
 │
 ├── docker/
 │   ├── Dockerfile.airflow
 │   ├── Dockerfile.api
 │   └── Dockerfile.streamlit
+│
+├── docs/
+│   └── images/
+│       ├── airflow_pipeline.png
+│       ├── streamlit_forecast.png
+│       └── streamlit_pricing.png
 │
 ├── etl/
 │   ├── extract/
@@ -626,6 +670,7 @@ walmart-enterprise-demand-forecasting/
 │   └── quality/
 │
 ├── models/
+│   └── demand_forecast_model_metadata.json
 │
 ├── notebooks/
 │   ├── 01_...
@@ -636,29 +681,30 @@ walmart-enterprise-demand-forecasting/
 │   └── 06_...
 │
 ├── outputs/
+│   ├── evaluation/
 │   ├── forecasting/
+│   ├── modeling/
 │   └── pricing/
+│
+├── sql/
+│   └── business_analysis.sql
 │
 ├── src/
 │   ├── api/
 │   │   └── main.py
-│   │
 │   ├── dashboard/
 │   │   └── app.py
-│   │
 │   ├── features/
 │   │   └── build_features.py
-│   │
 │   ├── forecasting/
 │   │   └── predict.py
-│   │
 │   └── pricing/
 │       └── recommend_price.py
 │
 ├── tests/
 │   └── test_api_smoke.py
 │
-├── .env
+├── .env.example
 ├── .gitignore
 ├── docker-compose.yml
 ├── requirements.txt
@@ -679,6 +725,7 @@ Important limitations include:
 - Historical price elasticity can be difficult to estimate for products with limited price variation.
 - Fallback elasticity is required when sufficient historical evidence is unavailable.
 - Simulated revenue improvement should not be interpreted as guaranteed real-world revenue improvement.
+- Large datasets and trained model binaries are intentionally excluded from the GitHub repository.
 - Production deployment would require additional monitoring, security, scaling, and model-governance infrastructure.
 
 ---
