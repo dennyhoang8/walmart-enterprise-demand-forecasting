@@ -1,573 +1,748 @@
-# Walmart Enterprise Demand Forecasting & Decision Intelligence Platform
+# Walmart Enterprise Demand Forecasting & Dynamic Pricing
 
-An end-to-end enterprise-style data engineering, machine learning, demand forecasting, and pricing optimization platform built using the Walmart M5 dataset and dynamic external data sources.
+An end-to-end data science and machine learning project that simulates an enterprise retail forecasting and pricing system using Walmart's M5 dataset.
 
-> **Status:** In Development — Data Engineering, Forecasting, and Decision Intelligence Complete; Deployment In Progress
-
----
-
-# Project Overview
-
-This project demonstrates how a modern retail decision-intelligence platform can be built from raw data ingestion through machine learning and deployment.
-
-The platform combines historical Walmart retail sales and pricing data with external information including weather, economic indicators, holidays, calendar events, and SNAP indicators.
-
-Raw data is processed through Python ETL pipelines, validated through data quality checks, and stored in a PostgreSQL data warehouse. The resulting data is transformed into a machine-learning feature dataset containing millions of product-store-date observations.
-
-Demand forecasting models are then trained using time-based validation. The best-performing model is integrated with a price-elasticity and pricing optimization system that evaluates alternative prices and generates product-level pricing recommendations.
-
-The remaining deployment layer will expose forecasting and pricing results through FastAPI and provide an interactive Streamlit decision-support dashboard.
+The project builds a complete pipeline from raw data ingestion and validation through feature engineering, demand forecasting, dynamic pricing recommendations, API serving, dashboarding, workflow orchestration, and Dockerized deployment.
 
 ---
 
-# Objectives
+## Project Overview
 
-- Build an enterprise-style retail ETL pipeline
-- Design and populate a PostgreSQL data warehouse
-- Integrate static and dynamic data sources
-- Automate data workflows using Apache Airflow
-- Implement data quality validation
-- Engineer time-series and retail forecasting features
-- Train and compare demand forecasting approaches
-- Evaluate models using time-based validation
-- Estimate product-level price elasticity
-- Simulate alternative pricing scenarios
-- Generate revenue-oriented pricing recommendations
-- Apply realistic pricing guardrails
-- Deploy results through a FastAPI service
-- Build an interactive Streamlit dashboard
-- Containerize application components with Docker
+Retailers need to answer two closely related questions:
+
+1. **How much demand should we expect for a product?**
+2. **What price should we recommend given that expected demand?**
+
+This project develops an end-to-end system for addressing both problems.
+
+The system combines historical Walmart sales and pricing data with calendar, holiday, weather, and economic information to create model-ready features.
+
+A machine learning model predicts product demand, while a separate pricing engine evaluates controlled price scenarios and recommends whether a product's price should be increased, decreased, or kept unchanged.
+
+The final system exposes predictions through a **FastAPI backend** and an interactive **Streamlit dashboard**, while **PostgreSQL, Apache Airflow, and Docker** support the surrounding data infrastructure.
 
 ---
 
-# High-Level Architecture
+## System Architecture
 
 ```text
-Walmart M5 Dataset
-Open-Meteo Weather API
-FRED Economic Data
-US Holiday Calendar
-        │
-        ▼
-Apache Airflow
-        │
-        ▼
-Python ETL Pipeline
-        │
-        ▼
-Data Quality Validation
-        │
-        ▼
-PostgreSQL Data Warehouse
-        │
-        ▼
-SQL Analytics
-        │
-        ▼
-Feature Engineering
-        │
-        ▼
-Demand Forecasting
-        │
-        ▼
-Price Elasticity Estimation
-        │
-        ▼
-Pricing Optimization
-        │
-        ▼
-FastAPI
-        │
-        ▼
-Streamlit Dashboard
-        │
-        ▼
-Docker
+                    RAW DATA SOURCES
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+   Walmart M5          Weather API          FRED
+ Sales / Prices        Open-Meteo       Economic Data
+        │                  │                  │
+        └──────────────────┼──────────────────┘
+                           │
+                           ▼
+                    ETL PIPELINE
+             Extract → Validate → Load
+                           │
+                           ▼
+                      PostgreSQL
+                           │
+                           ▼
+                  Feature Engineering
+                           │
+                           ▼
+                  Forecasting Model
+                           │
+                           ▼
+                  Demand Predictions
+                           │
+                           ▼
+                  Dynamic Pricing Engine
+                           │
+                           ▼
+                       FastAPI
+                           │
+                           ▼
+                      Streamlit
+                           │
+                           ▼
+                 Interactive Dashboard
+
+
+        Airflow → Pipeline Orchestration
+        Docker  → Containerized Environment
 ```
 
 ---
 
-# Data Sources
+## Technology Stack
 
-## Walmart M5 Dataset
+| Area | Technology |
+|---|---|
+| Programming | Python |
+| Data Processing | Pandas, NumPy |
+| Machine Learning | Scikit-learn |
+| Database | PostgreSQL |
+| ORM / Database Access | SQLAlchemy |
+| Workflow Orchestration | Apache Airflow |
+| API | FastAPI |
+| Dashboard | Streamlit |
+| Containerization | Docker / Docker Compose |
+| Testing | Pytest |
+| External Data | Open-Meteo, FRED, U.S. Holidays |
 
-Historical Walmart retail data provides:
+---
 
-- Daily unit sales
-- Store identifiers
-- Product identifiers
-- Departments
-- Categories
-- Selling prices
+## Data Sources
+
+### Walmart M5 Forecasting Dataset
+
+The core retail data comes from Walmart's M5 forecasting dataset.
+
+It contains:
+
+- Historical unit sales
+- Product hierarchy
+- Store information
+- Historical selling prices
 - Calendar information
-- SNAP indicators
 - Events and holidays
 
-## External Data
+The project primarily works with the following files:
 
-### Open-Meteo Weather API
+```text
+calendar.csv
+sell_prices.csv
+sales_train_validation.csv
+sales_train_evaluation.csv
+```
 
-Weather features include variables such as:
+### Weather Data
 
-- Maximum temperature
-- Minimum temperature
-- Precipitation
-- Snowfall
-- Maximum wind speed
+Historical weather data is collected using Open-Meteo for the states represented in the M5 dataset:
 
-### FRED Economic Data
+```text
+California
+Texas
+Wisconsin
+```
 
-Economic indicators include:
+### Economic Data
 
-- Consumer Price Index (CPI)
-- Unemployment rate
+Economic indicators are collected from the Federal Reserve Economic Data (FRED) API.
+
+The project includes:
+
+```text
+CPIAUCSL   → Consumer Price Index
+UNRATE     → Unemployment Rate
+FEDFUNDS   → Federal Funds Rate
+```
+
+### Holiday Data
+
+U.S. holiday information is incorporated to help capture demand changes around important calendar events.
+
+---
+
+## ETL Pipeline
+
+The ETL layer extracts external and local data, validates it, and prepares it for downstream analysis.
+
+```text
+Extract
+   ↓
+Validate
+   ↓
+Load
+   ↓
+PostgreSQL
+```
+
+The project includes separate processes for:
+
+- Walmart sales
+- Product prices
+- Calendar information
+- Weather
+- Economic indicators
+- Holidays
+
+Data-quality checks are performed before downstream modeling.
+
+Examples include:
+
+- Null key checks
+- Duplicate checks
+- Date validation
+- Schema validation
+- Dimension integrity checks
+
+---
+
+## PostgreSQL Data Warehouse
+
+PostgreSQL provides the structured storage layer for the project.
+
+The warehouse includes dimension and fact tables such as:
+
+```text
+dim_product
+dim_store
+dim_calendar
+dim_economic_series
+
+fact_sales
+fact_prices
+fact_weather
+```
+
+This separates raw storage and analytical processing from the machine learning layer and better represents how data would be managed in a production analytics environment.
+
+---
+
+## Apache Airflow
+
+Apache Airflow is used to orchestrate the project's data pipeline.
+
+Airflow provides:
+
+- Task scheduling
+- Dependency management
+- Pipeline monitoring
+- Repeatable ETL execution
+- Failure visibility
+
+The Airflow scheduler and webserver run as separate Docker services.
+
+---
+
+## Exploratory Data Analysis
+
+The notebook workflow investigates the major components of the retail dataset before modeling.
+
+Analysis includes:
+
+- Sales distributions
+- Product and category behavior
+- Store-level demand
+- Missing values
+- Price behavior
+- Calendar effects
+- Event and holiday effects
+- Time-series patterns
+
+The notebooks are designed to move progressively from understanding the raw data toward a production-ready forecasting pipeline.
+
+---
+
+## Feature Engineering
+
+Historical sales and external information are transformed into model-ready features.
+
+Examples include:
+
+### Time Features
+
+```text
+day of week
+month
+year
+week
+weekend indicators
+```
+
+### Lag Features
+
+Historical demand values are shifted backward to provide the model with information about previous sales behavior.
+
+Examples:
+
+```text
+lag_7
+lag_28
+```
+
+### Rolling Features
+
+Rolling statistics summarize recent demand behavior.
+
+Examples include rolling averages and related historical demand measures.
+
+### Calendar Features
+
+Features incorporate:
+
+- Events
+- Holidays
+- SNAP information
+- Calendar structure
+
+### External Features
+
+The feature pipeline can also incorporate:
+
+- Weather
+- CPI
+- Unemployment
 - Federal funds rate
 
-### US Holiday Calendar
-
-Holiday and calendar information is incorporated to help capture changes in consumer demand around important dates.
+The resulting model-ready feature dataset is used by the forecasting pipeline.
 
 ---
 
-# Technology Stack
+## Demand Forecasting
 
-## Data Engineering
+The forecasting component predicts expected unit demand at the product/store/date level.
 
-- Python
-- Pandas
-- NumPy
-- PostgreSQL
-- SQLAlchemy
-- Apache Airflow
+The final forecasting workflow uses a **Poisson Histogram Gradient Boosting** approach designed for non-negative count-like demand data.
 
-## Database & Analytics
+The model learns relationships between historical demand and features such as:
 
-- PostgreSQL
-- SQL
-- Common Table Expressions (CTEs)
-- Window Functions
-- Views
-- Indexes
+```text
+Historical sales
+Lagged demand
+Rolling demand
+Price
+Calendar information
+Events
+Holidays
+External variables
+```
 
-## Machine Learning
-
-- scikit-learn
-- Linear Regression
-- Histogram Gradient Boosting
-- Time-Based Train/Test Validation
-- MAE
-- RMSE
-- Permutation Feature Importance
-
-## Decision Intelligence
-
-- Price-Demand Analysis
-- Price Elasticity Estimation
-- Log-Log Elasticity Modeling
-- Price Simulation
-- Revenue Optimization
-- Pricing Guardrails
-
-## Deployment
-
-- FastAPI
-- Streamlit
-- Docker
-
-## Version Control
-
-- Git
-- GitHub
+Predictions are constrained to prevent negative demand forecasts.
 
 ---
 
-# Repository Structure
+## Model Evaluation
+
+Forecasting performance is evaluated using time-aware validation rather than randomly mixing past and future observations.
+
+Primary evaluation metrics include:
+
+### MAE — Mean Absolute Error
+
+Measures the average absolute difference between predicted demand and actual demand.
+
+Lower is better.
+
+### RMSE — Root Mean Squared Error
+
+Measures prediction error while penalizing large mistakes more heavily than MAE.
+
+Lower is better.
+
+The forecasting workflow also compares model performance against simpler baseline predictions.
+
+This helps determine whether the machine learning model actually provides additional forecasting value.
+
+---
+
+## Dynamic Pricing Engine
+
+Demand predictions are passed into a scenario-based pricing engine.
+
+The pricing system evaluates controlled price changes and estimates their effect on expected demand and revenue.
+
+For each product/date combination, the system can recommend:
+
+```text
+Increase
+Decrease
+Keep
+```
+
+The engine includes price guardrails to prevent unrealistic recommendations.
+
+It also distinguishes between:
+
+```text
+Observed elasticity
+Fallback elasticity
+```
+
+Recommendations must meet minimum simulated revenue-improvement requirements before they are considered actionable.
+
+---
+
+## Pricing Results
+
+During the latest full pricing run:
+
+```text
+Pricing recommendations: 326,838
+
+Decrease: 28.24%
+Keep:     68.39%
+Increase:  3.37%
+
+Actionable recommendations: 101,392
+Actionable rate: 31.02%
+```
+
+Elasticity sources:
+
+```text
+Observed: 103,305
+Fallback: 223,533
+```
+
+The scenario simulation produced:
+
+```text
+Current expected revenue:
+$1,202,032.22
+
+Recommended expected revenue:
+$1,264,768.32
+
+Simulated revenue lift:
+$62,736.10
+
+Simulated revenue lift:
+5.22%
+```
+
+> **Important:** These results represent model-based scenario simulations, not experimentally verified causal revenue gains.
+
+---
+
+## FastAPI Backend
+
+FastAPI exposes the forecasting and pricing functionality through an API.
+
+The API includes endpoints for:
+
+```text
+/health
+/forecast
+/recommend-price
+```
+
+Example architecture:
+
+```text
+Client
+   ↓
+FastAPI
+   ↓
+Forecasting Model
+   ↓
+Pricing Engine
+   ↓
+JSON Response
+```
+
+Interactive API documentation is available locally at:
+
+```text
+localhost:8000/docs
+```
+
+---
+
+## Streamlit Dashboard
+
+The Streamlit application provides a user-friendly interface for interacting with the system.
+
+Users can select:
+
+```text
+Item
+Store
+Date
+```
+
+and request a demand forecast.
+
+The dashboard can display:
+
+- Predicted demand
+- Current price
+- Recommended price
+- Pricing action
+- Expected demand
+- Simulated revenue
+- Revenue lift
+- Elasticity
+- Recommendation status
+
+The local dashboard runs at:
+
+```text
+localhost:8501
+```
+
+---
+
+## Docker Architecture
+
+The project is containerized with Docker Compose.
+
+The main services are:
+
+```text
+PostgreSQL
+Airflow Init
+Airflow Scheduler
+Airflow Webserver
+FastAPI
+Streamlit
+```
+
+Conceptually:
+
+```text
+┌─────────────────────┐
+│      Streamlit      │
+│       :8501         │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│       FastAPI       │
+│        :8000        │
+└─────────────────────┘
+
+┌─────────────────────┐
+│      PostgreSQL     │
+│   Host port :5433   │
+└─────────────────────┘
+
+┌─────────────────────┐
+│       Airflow       │
+│        :8080        │
+└─────────────────────┘
+```
+
+Docker provides a reproducible environment for running the infrastructure and application services.
+
+---
+
+## Running the Project
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd walmart-enterprise-demand-forecasting
+```
+
+### 2. Configure environment variables
+
+Create a `.env` file containing the required environment variables.
+
+Example:
+
+```text
+POSTGRES_USER=...
+POSTGRES_PASSWORD=...
+POSTGRES_DB=...
+FRED_API_KEY=...
+```
+
+Do **not** commit the `.env` file to GitHub.
+
+### 3. Build and start Docker
+
+```bash
+docker compose up -d --build
+```
+
+### 4. Verify containers
+
+```bash
+docker compose ps
+```
+
+Expected services include:
+
+```text
+walmart_postgres
+walmart_airflow_scheduler
+walmart_airflow_webserver
+walmart_api
+walmart_streamlit
+```
+
+### 5. Open the applications
+
+```text
+Streamlit:
+localhost:8501
+
+FastAPI:
+localhost:8000/docs
+
+Airflow:
+localhost:8080
+```
+
+### 6. Stop the environment
+
+```bash
+docker compose down
+```
+
+The PostgreSQL Docker volume persists unless it is explicitly removed.
+
+---
+
+## Automated Testing
+
+The project includes API smoke tests using Pytest.
+
+Tests verify functionality such as:
+
+- API health
+- Demand forecast requests
+- Pricing recommendations
+- Invalid or unavailable forecasting requests
+
+Run tests with:
+
+```bash
+python -m pytest tests/test_api_smoke.py -v
+```
+
+---
+
+## Project Structure
 
 ```text
 walmart-enterprise-demand-forecasting/
-
+│
 ├── airflow/
 │   └── dags/
-│
-├── api/
-│
-├── dashboard/
 │
 ├── data/
 │   ├── raw/
 │   ├── processed/
-│   └── external/
-│
-├── database/
+│   └── ...
 │
 ├── docker/
-│
-├── docs/
+│   ├── Dockerfile.airflow
+│   ├── Dockerfile.api
+│   └── Dockerfile.streamlit
 │
 ├── etl/
 │   ├── extract/
-│   ├── transform/
-│   ├── quality/
-│   └── load/
+│   ├── load/
+│   └── quality/
 │
 ├── models/
 │
 ├── notebooks/
+│   ├── 01_...
+│   ├── 02_...
+│   ├── 03_...
+│   ├── 04_...
+│   ├── 05_...
+│   └── 06_...
 │
-├── sql/
+├── outputs/
+│   ├── forecasting/
+│   └── pricing/
+│
+├── src/
+│   ├── api/
+│   │   └── main.py
+│   │
+│   ├── dashboard/
+│   │   └── app.py
+│   │
+│   ├── features/
+│   │   └── build_features.py
+│   │
+│   ├── forecasting/
+│   │   └── predict.py
+│   │
+│   └── pricing/
+│       └── recommend_price.py
 │
 ├── tests/
+│   └── test_api_smoke.py
 │
+├── .env
 ├── .gitignore
 ├── docker-compose.yml
-├── README.md
-└── requirements.txt
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-# Data Engineering Pipeline
+## Current Limitations
 
-The project implements an end-to-end data engineering workflow that prepares multiple retail and external data sources for analytics and machine learning.
+This project is designed as a portfolio-scale simulation of an enterprise forecasting system rather than a live Walmart production system.
 
-The pipeline performs:
+Important limitations include:
 
-1. Data extraction from static datasets and external APIs
-2. Data validation and quality checks
-3. Data transformation
-4. Loading into PostgreSQL
-5. Integration of sales, pricing, calendar, weather, and economic information
-6. Feature engineering for forecasting
-
-The resulting machine-learning dataset contains approximately **4.75 million observations and 30 columns**.
-
----
-
-# Feature Engineering
-
-The forecasting dataset contains features designed to capture historical demand, trends, calendar patterns, pricing behavior, weather conditions, and economic conditions.
-
-Examples include:
-
-### Historical Demand
-
-- `lag_1`
-- `lag_7`
-- `lag_30`
-- `rolling_avg_7`
-- `rolling_avg_28`
-
-### Sales Dynamics
-
-- Short-term sales changes
-- Longer-term sales changes
-
-### Calendar
-
-- Day of week
-- Day of month
-- Month
-- Weekend indicator
-- Event indicator
-- SNAP indicator
-
-### Pricing
-
-- Selling price
-
-### Weather
-
-- Maximum temperature
-- Minimum temperature
-- Precipitation
-- Snowfall
-- Maximum wind speed
-
-### Economic
-
-- CPI
-- Unemployment rate
-- Federal funds rate
+- The current API primarily scores model-ready dates available in the processed feature dataset.
+- True recursive multi-step future forecasting is not yet implemented.
+- Pricing recommendations are scenario-based rather than causal estimates.
+- Historical price elasticity can be difficult to estimate for products with limited price variation.
+- Fallback elasticity is required when sufficient historical evidence is unavailable.
+- Simulated revenue improvement should not be interpreted as guaranteed real-world revenue improvement.
+- Production deployment would require additional monitoring, security, scaling, and model-governance infrastructure.
 
 ---
 
-# Demand Forecasting
+## Future Improvements
 
-The forecasting system uses a chronological train/test split rather than a random split to better represent a real-world forecasting scenario.
+Potential extensions include:
 
-The final **28 days** of the dataset are reserved for testing.
-
-### Training Period
-
-February 28, 2011 through April 24, 2016
-
-### Test Period
-
-April 25, 2016 through May 22, 2016
-
-### Models Evaluated
-
-- 28-Day Rolling Average Baseline
-- Linear Regression
-- Histogram Gradient Boosting
+- Recursive future forecasting
+- Automated future feature generation
+- Forecast uncertainty intervals
+- Stronger product-level elasticity models
+- Controlled pricing experiments / A/B testing
+- Model drift monitoring
+- Automated retraining
+- Cloud deployment
+- CI/CD
+- Authentication and API security
+- Additional stores and product coverage
+- More extensive hyperparameter optimization
 
 ---
 
-# Model Performance
+## Key Skills Demonstrated
 
-| Model | MAE | RMSE |
-|---|---:|---:|
-| Histogram Gradient Boosting | 1.0882 | 2.0327 |
-| Linear Regression | 1.1253 | 2.1310 |
-| Rolling Average Baseline | 1.1288 | 2.1931 |
-
-Histogram Gradient Boosting produced the best performance.
-
-Compared with the baseline model, it achieved approximately:
-
-- **3.60% improvement in MAE**
-- **7.32% improvement in RMSE**
-
-The final forecasting model was saved for reuse by downstream pricing and deployment components.
-
----
-
-# Feature Importance
-
-Permutation feature importance was used to analyze which variables contributed most strongly to demand forecasting performance.
-
-The strongest features included:
-
-1. `rolling_avg_7`
-2. `rolling_avg_28`
-3. `lag_1`
-4. `day_of_week`
-5. `lag_7`
-
-Historical demand therefore represents the strongest predictive signal in the current forecasting model.
-
-Pricing, calendar, event, SNAP, weather, and other external variables provide additional contextual information.
-
----
-
-# Price Elasticity Analysis
-
-Historical price and demand observations are used to estimate product-level price elasticity.
-
-A log-log relationship is used to approximate the percentage change in demand associated with a percentage change in price.
-
-After filtering unstable or implausible estimates:
-
-- **2,163 initial product elasticity estimates**
-- **1,048 retained valid elasticity estimates**
-- **48.45% of initial estimates retained**
-
-The retained elasticity estimates have an average of approximately:
-
-**-1.19**
-
-This indicates that, across the retained product sample, demand generally decreases as price increases.
-
----
-
-# Pricing Optimization Engine
-
-The decision-intelligence layer combines:
-
-- Forecasted baseline demand
-- Current selling price
-- Product-level price elasticity
-- Candidate pricing scenarios
-- Pricing guardrails
-- Revenue calculations
-
-For each eligible product, the system evaluates alternative prices around the current selling price.
-
-Demand is adjusted using estimated price elasticity, and projected revenue is calculated for each scenario.
-
-The system then selects the candidate price with the highest projected revenue while respecting pricing constraints.
-
----
-
-# Pricing Guardrails
-
-To prevent unrealistic recommendations, candidate prices are constrained to a limited range around the current selling price.
-
-The current implementation limits recommended price movements to approximately:
-
-**±10% of the current selling price**
-
-This creates a more conservative pricing strategy suitable for decision-support experimentation.
-
----
-
-# Pricing Recommendation Results
-
-The elasticity-aware pricing engine successfully generated recommendations for:
-
-**1,048 products**
-
-Summary results:
-
-| Metric | Result |
-|---|---:|
-| Products analyzed | 1,048 |
-| Average current price | $4.44 |
-| Average recommended price | $4.45 |
-| Average price change | -0.21% |
-| Average elasticity | -1.19 |
-| Average projected revenue improvement | 4.43% |
-| Price increases | 492 |
-| Price decreases | 542 |
-| No price change | 14 |
-
-The mix of increases and decreases demonstrates that the optimization engine does not apply a single pricing strategy across all products. Recommendations vary according to each product's estimated demand response.
-
-Projected revenue improvements are model-based simulation results and should not be interpreted as causal estimates of the revenue that would be realized in production.
-
----
-
-# Generated Machine Learning Artifacts
-
-The project currently produces reusable artifacts including:
+This project demonstrates experience across the full data science lifecycle:
 
 ```text
-data/processed/walmart_features.pkl
-data/processed/forecast_predictions.pkl
-data/processed/elasticity_pricing_recommendations.pkl
-
-models/gradient_boosting_forecast_model.pkl
+Data ingestion
+Data validation
+ETL
+SQL
+PostgreSQL
+Exploratory data analysis
+Feature engineering
+Time-series forecasting
+Machine learning
+Model evaluation
+Dynamic pricing
+API development
+Dashboard development
+Automated testing
+Workflow orchestration
+Docker
+Production-oriented project structure
 ```
 
-These artifacts allow downstream applications to use forecasting and pricing results without retraining the model every time.
+Rather than ending with a notebook and a trained model, the project demonstrates how a machine learning workflow can be connected to the surrounding infrastructure required to turn predictions into a usable application.
 
 ---
 
-# Roadmap
+## Disclaimer
 
-## Phase 0 — Project Initialization
+This project is an independent educational and portfolio project using publicly available data.
 
-- [x] Repository setup
-- [x] Folder structure
-- [x] Business Requirements Document
+It is not affiliated with, endorsed by, or deployed by Walmart.
 
----
-
-## Phase 1 — Data Engineering
-
-- [x] Data Acquisition
-- [x] Data Dictionary
-- [x] Exploratory Data Analysis
-- [x] Data Warehouse Design
-- [x] PostgreSQL Warehouse
-- [x] ETL Pipeline
-- [x] Data Quality Validation
-- [x] External Data Integration
-- [x] Airflow Environment / Pipeline Setup
+Pricing results are simulated model outputs and should not be interpreted as actual Walmart pricing recommendations or guaranteed financial outcomes.
 
 ---
 
-## Phase 2 — Analytics & Forecasting
+## Author
 
-- [x] SQL Analytics
-- [x] Feature Engineering
-- [x] Time-Based Train/Test Split
-- [x] Baseline Forecast
-- [x] Linear Regression
-- [x] Gradient Boosting Model
-- [x] Model Evaluation
-- [x] Forecast Visualization
-- [x] Forecast Error Analysis
-- [x] Permutation Feature Importance
-- [x] Save Final Forecasting Model
-- [x] Save Forecast Results
+**Denny Hoang**
 
----
-
-## Phase 3 — Decision Intelligence
-
-- [x] Price-Demand Analysis
-- [x] Product Price Elasticity Estimation
-- [x] Elasticity Validation
-- [x] Candidate Price Simulation
-- [x] Demand Adjustment Using Elasticity
-- [x] Revenue Optimization
-- [x] Pricing Guardrails
-- [x] Product-Level Price Recommendations
-- [x] Save Final Pricing Recommendations
-
----
-
-## Phase 4 — Deployment
-
-- [ ] FastAPI Service
-- [ ] Forecasting Endpoints
-- [ ] Pricing Recommendation Endpoints
-- [ ] Streamlit Dashboard
-- [ ] API / Dashboard Integration
-- [ ] Docker Integration
-- [ ] End-to-End Testing
-
----
-
-## Phase 5 — Documentation & Portfolio
-
-- [ ] Final Architecture Diagram
-- [ ] ER Diagram
-- [x] Data Dictionary
-- [ ] API Documentation
-- [ ] Technical Documentation
-- [ ] Dashboard Screenshots
-- [ ] Final Project Report
-- [ ] Final GitHub Cleanup
-
----
-
-# Skills Demonstrated
-
-- Enterprise-Style Data Engineering
-- Python ETL Development
-- PostgreSQL Data Warehousing
-- Apache Airflow
-- Data Quality Validation
-- SQL Analytics
-- Multi-Source Data Integration
-- Feature Engineering
-- Machine Learning
-- Demand Forecasting
-- Time-Based Model Validation
-- Model Evaluation
-- Feature Importance
-- Price Elasticity Analysis
-- Pricing Simulation
-- Revenue Optimization
-- Decision Intelligence
-- Model Serialization
-- API Development
-- Dashboard Development
-- Docker Containerization
-- Git Version Control
-
----
-
-# Disclaimer
-
-This project is an independent educational portfolio project.
-
-It uses the publicly available Walmart M5 forecasting dataset and publicly accessible external data sources. It is not affiliated with, sponsored by, or endorsed by Walmart.
-
-Pricing recommendations and projected revenue improvements are outputs of an experimental modeling and simulation framework and are not actual Walmart pricing recommendations or realized financial results.
-
----
-
-# Project Status
-
-**Current Milestone: Phase 4 — Deployment**
-
-Completed:
-
-**Data Engineering → Feature Engineering → Demand Forecasting → Price Elasticity → Pricing Optimization**
-
-Next:
-
-**FastAPI → Streamlit → Docker Integration → Final Testing → Documentation**
+M.S. Data Science  
+University of St. Thomas

@@ -1,6 +1,13 @@
 pandas
-requests
+numpy
+scikit-learn
+joblib
 sqlalchemy
 psycopg2-binary
 python-dotenv
+requests
 holidays
+fastapi
+uvicorn
+streamlit
+pytest
