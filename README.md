@@ -2,7 +2,7 @@
 
 An end-to-end data science and machine learning project that simulates an enterprise retail forecasting and pricing system using Walmart's M5 dataset.
 
-The project builds a complete pipeline from raw data ingestion and validation through feature engineering, demand forecasting, dynamic pricing recommendations, API serving, dashboarding, workflow orchestration, and Dockerized deployment.
+The project builds a complete pipeline from raw data ingestion and validation through feature engineering, demand forecasting, dynamic pricing recommendations, API serving, dashboarding, workflow orchestration, testing, and Dockerized deployment.
 
 ---
 
@@ -19,7 +19,86 @@ The system combines historical Walmart sales and pricing data with calendar, hol
 
 A machine learning model predicts product demand, while a separate pricing engine evaluates controlled price scenarios and recommends whether a product's price should be increased, decreased, or kept unchanged.
 
-The final system exposes predictions through a **FastAPI backend** and an interactive **Streamlit dashboard**, while **PostgreSQL, Apache Airflow, and Docker** support the surrounding data infrastructure.
+The final system exposes predictions through a **FastAPI backend** and an interactive **Streamlit dashboard**, while **PostgreSQL, Apache Airflow, Docker, and Pytest** support the surrounding data and application infrastructure.
+
+---
+
+## Key Results
+
+### Demand Forecasting
+
+The selected **Poisson Histogram Gradient Boosting** model achieved the following performance on the final held-out test period:
+
+| Model | MAE | RMSE |
+|---|---:|---:|
+| **Poisson Histogram Gradient Boosting** | **1.252** | **2.206** |
+| 28-Day Naive Baseline | 1.583 | 2.859 |
+| 7-Day Naive Baseline | 1.630 | 2.924 |
+
+Compared with the 7-day naive baseline, the selected model improved:
+
+- **MAE by 23.17%**
+- **RMSE by 24.54%**
+
+The evaluation workflow also includes rolling-origin backtesting to test whether the model continues to outperform naive forecasting approaches across multiple historical windows.
+
+### Dynamic Pricing
+
+The project includes two pricing scopes:
+
+**Notebook 06 evaluation scope**
+
+Notebook 06 evaluates the pricing logic on the held-out test-period predictions.
+
+```text
+Pricing-eligible rows: 5,600
+
+Current expected revenue:
+$22,081.75
+
+Recommended expected revenue:
+$23,200.21
+
+Simulated expected revenue lift:
+$1,118.46
+
+Simulated expected revenue lift:
+5.07%
+```
+
+**Production pricing pipeline scope**
+
+The reusable production pricing module later generates recommendations across the broader eligible feature dataset.
+
+```text
+Pricing recommendations: 326,838
+
+Decrease: 28.24%
+Keep:     68.39%
+Increase:  3.37%
+
+Actionable recommendations: 101,392
+Actionable rate: 31.02%
+
+Observed elasticity: 103,305
+Fallback elasticity: 223,533
+
+Current expected revenue:
+$1,202,032.22
+
+Recommended expected revenue:
+$1,264,768.32
+
+Simulated expected revenue lift:
+$62,736.10
+
+Simulated expected revenue lift:
+5.22%
+```
+
+These two sets of numbers represent **different evaluation scopes** and should not be compared as though they came from the same dataset.
+
+> **Important:** All pricing results are scenario-model outputs. They are not experimentally verified causal revenue gains or realized Walmart business results.
 
 ---
 
@@ -66,6 +145,7 @@ The final system exposes predictions through a **FastAPI backend** and an intera
 
         Airflow → Pipeline Orchestration
         Docker  → Containerized Environment
+        Pytest  → API Smoke Testing
 ```
 
 ---
@@ -172,6 +252,7 @@ Examples include:
 - Date validation
 - Schema validation
 - Dimension integrity checks
+- Invalid-value checks
 
 ---
 
@@ -198,7 +279,7 @@ This separates structured data storage from the machine learning layer and bette
 
 ## Apache Airflow
 
-Apache Airflow is used to orchestrate the project's data pipeline.
+Apache Airflow is used to orchestrate the project's ETL pipeline.
 
 Airflow provides:
 
@@ -207,14 +288,125 @@ Airflow provides:
 - Pipeline monitoring
 - Repeatable ETL execution
 - Failure visibility
+- Data validation sequencing
 
 The Airflow scheduler and webserver run as separate Docker services.
 
 ---
 
+## Notebook Workflow
+
+The analysis is organized into six notebooks that follow the data science lifecycle.
+
+```text
+01 Data Profiling
+      ↓
+02 Exploratory Data Analysis
+      ↓
+03 Feature Engineering
+      ↓
+04 Modeling
+      ↓
+05 Model Evaluation
+      ↓
+06 Dynamic Pricing
+```
+
+### Notebook 01 — Data Profiling
+
+Focuses on understanding the raw datasets before analysis.
+
+Includes:
+
+- Data sources
+- Shapes and schemas
+- Missing values
+- Duplicate checks
+- Key fields
+- Date ranges
+- Memory usage
+- Basic validity checks
+
+### Notebook 02 — Exploratory Data Analysis
+
+Investigates business and demand behavior.
+
+Includes:
+
+- Overall demand trends
+- Day-of-week seasonality
+- Monthly and yearly patterns
+- Store behavior
+- Category and department behavior
+- Price relationships
+- Holiday and event effects
+- SNAP behavior
+- Weather and economic relationships
+
+### Notebook 03 — Feature Engineering
+
+Creates the model-ready feature dataset.
+
+Includes:
+
+- Time features
+- Lag features
+- Rolling features
+- Price features
+- Calendar/event features
+- Weather features
+- Economic features
+- Leakage checks
+
+### Notebook 04 — Modeling
+
+Builds and compares forecasting approaches.
+
+Includes:
+
+- Chronological train/validation/test split
+- Naive forecasting baselines
+- Histogram Gradient Boosting
+- Poisson Histogram Gradient Boosting
+- Validation-based model selection
+- Final test evaluation
+- Final model refitting and saving
+
+### Notebook 05 — Model Evaluation
+
+Performs deeper evaluation before the forecasting system feeds the pricing engine.
+
+Includes:
+
+- Final test metrics
+- Baseline comparison
+- Bias analysis
+- Product-level errors
+- Store/category segmentation
+- Rolling-origin backtesting
+- Feature importance
+- Model acceptance checks
+
+### Notebook 06 — Dynamic Pricing
+
+Uses demand predictions to simulate guarded pricing scenarios.
+
+Includes:
+
+- Price elasticity estimation
+- Observed versus fallback elasticity
+- Candidate price scenarios
+- Price-change guardrails
+- Expected demand simulation
+- Expected revenue simulation
+- Actionability thresholds
+- Business limitations and assumptions
+
+---
+
 ## Exploratory Data Analysis
 
-The notebook workflow investigates the major components of the retail dataset before modeling.
+The exploratory workflow investigates the major components of the retail dataset before modeling.
 
 Analysis includes:
 
@@ -226,6 +418,8 @@ Analysis includes:
 - Calendar effects
 - Event and holiday effects
 - Time-series patterns
+- Weather relationships
+- Economic relationships
 
 The notebooks progressively move from understanding the raw data toward feature engineering, forecasting, model evaluation, and pricing analysis.
 
@@ -260,7 +454,9 @@ lag_28
 
 ### Rolling Features
 
-Rolling statistics summarize recent demand behavior and provide the model with information about recent sales trends.
+Rolling statistics summarize recent demand behavior.
+
+Examples include rolling averages and recent zero-sales behavior.
 
 ### Calendar Features
 
@@ -270,6 +466,10 @@ Features incorporate information such as:
 - Holidays
 - SNAP information
 - Calendar structure
+
+### Price Features
+
+The pipeline incorporates current and historical pricing information for downstream forecasting and pricing analysis.
 
 ### External Features
 
@@ -288,7 +488,7 @@ The resulting model-ready feature dataset is used by the forecasting pipeline.
 
 The forecasting component predicts expected unit demand at the product/store/date level.
 
-The final forecasting workflow uses a **Poisson Histogram Gradient Boosting** approach designed for non-negative, count-like demand data.
+The final forecasting workflow uses a **Poisson Histogram Gradient Boosting** model designed for non-negative, count-like demand data.
 
 The model learns relationships between historical demand and features such as:
 
@@ -300,7 +500,8 @@ Price
 Calendar information
 Events
 Holidays
-External variables
+Weather
+Economic variables
 ```
 
 Predictions are constrained to prevent negative demand forecasts.
@@ -309,7 +510,7 @@ Predictions are constrained to prevent negative demand forecasts.
 
 ## Model Evaluation
 
-Forecasting performance is evaluated using time-aware validation rather than randomly mixing past and future observations.
+Forecasting performance is evaluated using chronological validation rather than randomly mixing past and future observations.
 
 Primary evaluation metrics include:
 
@@ -325,9 +526,20 @@ Measures prediction error while penalizing larger mistakes more heavily than MAE
 
 Lower is better.
 
-The forecasting workflow also compares model performance against simpler baseline predictions.
+### Final Holdout Performance
 
-This helps determine whether the machine learning model provides additional forecasting value beyond simpler forecasting approaches.
+| Model | MAE | RMSE |
+|---|---:|---:|
+| **Poisson Histogram Gradient Boosting** | **1.252** | **2.206** |
+| 28-Day Naive Baseline | 1.583 | 2.859 |
+| 7-Day Naive Baseline | 1.630 | 2.924 |
+
+The selected model improved:
+
+- **MAE by 23.17%** versus the 7-day naive baseline
+- **RMSE by 24.54%** versus the 7-day naive baseline
+
+The model evaluation notebook also includes rolling-origin backtesting to test performance across multiple historical windows rather than relying on a single holdout period.
 
 ---
 
@@ -335,7 +547,7 @@ This helps determine whether the machine learning model provides additional fore
 
 Demand predictions are passed into a scenario-based pricing engine.
 
-The pricing system evaluates controlled price changes and estimates their effect on expected demand and revenue.
+The pricing system evaluates controlled price changes and estimates their effect on expected demand and expected revenue.
 
 For each eligible product/date combination, the system can recommend:
 
@@ -345,58 +557,20 @@ Decrease
 Keep
 ```
 
-The engine includes price guardrails to prevent unrealistic recommendations.
+The engine includes pricing guardrails to prevent unrealistic recommendations.
 
-It also distinguishes between:
+It distinguishes between:
 
 ```text
 Observed elasticity
 Fallback elasticity
 ```
 
-Recommendations must meet minimum simulated revenue-improvement requirements before they are considered actionable.
+When historical evidence is insufficient for reliable item-level elasticity estimation, the system uses a fallback assumption rather than pretending the observed relationship is precise.
 
----
+Candidate prices are evaluated within constrained price ranges, and recommendations must meet minimum simulated revenue-improvement requirements before being considered actionable.
 
-## Pricing Results
-
-During the completed pricing run:
-
-```text
-Pricing recommendations: 326,838
-
-Decrease: 28.24%
-Keep:     68.39%
-Increase:  3.37%
-
-Actionable recommendations: 101,392
-Actionable rate: 31.02%
-```
-
-Elasticity sources:
-
-```text
-Observed: 103,305
-Fallback: 223,533
-```
-
-The scenario simulation produced:
-
-```text
-Current expected revenue:
-$1,202,032.22
-
-Recommended expected revenue:
-$1,264,768.32
-
-Simulated revenue lift:
-$62,736.10
-
-Simulated revenue lift:
-5.22%
-```
-
-> **Important:** These results represent model-based scenario simulations, not experimentally verified causal revenue gains.
+The system also prefers keeping the current price when multiple candidate prices generate effectively equivalent simulated revenue.
 
 ---
 
@@ -407,12 +581,12 @@ FastAPI exposes the forecasting and pricing functionality through an API.
 The API includes endpoints for:
 
 ```text
-/health
-/forecast
-/recommend-price
+GET  /health
+POST /forecast
+POST /recommend-price
 ```
 
-The application architecture is:
+Application flow:
 
 ```text
 Client
@@ -429,7 +603,7 @@ JSON Response
 Interactive API documentation is available locally at:
 
 ```text
-localhost:8000/docs
+http://localhost:8000/docs
 ```
 
 ---
@@ -448,23 +622,47 @@ Date
 
 and request a demand forecast or pricing recommendation.
 
-The dashboard can display:
+The dashboard displays information such as:
 
 - Predicted demand
 - Current price
 - Recommended price
 - Pricing action
 - Expected demand
-- Simulated revenue
-- Revenue lift
+- Current expected revenue
+- Recommended expected revenue
+- Simulated revenue lift
 - Elasticity
+- Elasticity source
 - Recommendation status
 
 The local dashboard runs at:
 
 ```text
-localhost:8501
+http://localhost:8501
 ```
+
+---
+
+## Project Demonstration
+
+### Airflow ETL Pipeline
+
+Apache Airflow orchestrates the extraction, loading, and validation of external data sources used by the forecasting pipeline.
+
+![Airflow ETL Pipeline](docs/images/airflow_pipeline.png)
+
+### Demand Forecasting Application
+
+The Streamlit application communicates with the FastAPI backend to generate item-level demand predictions using the trained Poisson Histogram Gradient Boosting model.
+
+![Demand Forecast](docs/images/streamlit_forecast.png)
+
+### Dynamic Pricing Recommendation
+
+The pricing engine evaluates forecasted demand, current price, price elasticity, expected revenue, and pricing guardrails before recommending a pricing action.
+
+![Dynamic Pricing Recommendation](docs/images/streamlit_pricing.png)
 
 ---
 
@@ -472,7 +670,7 @@ localhost:8501
 
 The project is containerized with Docker Compose.
 
-The main services are:
+The primary services are:
 
 ```text
 PostgreSQL
@@ -517,7 +715,7 @@ Docker provides a reproducible environment for running the project's infrastruct
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/dennyhoang8/walmart-enterprise-demand-forecasting.git
 cd walmart-enterprise-demand-forecasting
 ```
 
@@ -549,13 +747,21 @@ models/demand_forecast_model.joblib
 
 These artifacts are produced locally through the project's data preparation and modeling workflow.
 
-### 4. Build and Start Docker
+### 4. Install Python Dependencies
+
+For local development:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 5. Build and Start Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-### 5. Verify Containers
+### 6. Verify Containers
 
 ```bash
 docker compose ps
@@ -571,20 +777,22 @@ walmart_api
 walmart_streamlit
 ```
 
-### 6. Open the Applications
+`airflow-init` may complete its initialization work and exit rather than remaining as a persistent service.
+
+### 7. Open the Applications
 
 ```text
 Streamlit:
-localhost:8501
+http://localhost:8501
 
 FastAPI:
-localhost:8000/docs
+http://localhost:8000/docs
 
 Airflow:
-localhost:8080
+http://localhost:8080
 ```
 
-### 7. Stop the Environment
+### 8. Stop the Environment
 
 ```bash
 docker compose down
@@ -592,27 +800,13 @@ docker compose down
 
 The PostgreSQL Docker volume persists unless it is explicitly removed.
 
----
+Avoid:
 
-## Project Demonstration
+```bash
+docker compose down -v
+```
 
-### Airflow ETL Pipeline
-
-Apache Airflow orchestrates the extraction, loading, and validation of external data sources used by the forecasting pipeline.
-
-![Airflow ETL Pipeline](docs/images/airflow_pipeline.png)
-
-### Demand Forecasting Application
-
-The Streamlit application communicates with the FastAPI backend to generate item-level demand predictions using the trained Poisson Histogram Gradient Boosting model.
-
-![Demand Forecast](docs/images/streamlit_forecast.png)
-
-### Dynamic Pricing Recommendation
-
-The pricing engine evaluates forecasted demand, current price, price elasticity, expected revenue, and pricing guardrails before recommending a pricing action.
-
-![Dynamic Pricing Recommendation](docs/images/streamlit_pricing.png)
+unless the intention is to remove the persistent PostgreSQL volume as well.
 
 ---
 
@@ -673,12 +867,12 @@ walmart-enterprise-demand-forecasting/
 │   └── demand_forecast_model_metadata.json
 │
 ├── notebooks/
-│   ├── 01_...
-│   ├── 02_...
-│   ├── 03_...
-│   ├── 04_...
-│   ├── 05_...
-│   └── 06_...
+│   ├── 01_data_profiling.ipynb
+│   ├── 02_exploratory_data_analysis.ipynb
+│   ├── 03_feature_engineering.ipynb
+│   ├── 04_modeling.ipynb
+│   ├── 05_model_evaluation.ipynb
+│   └── 06_dynamic_pricing_finalized.ipynb
 │
 ├── outputs/
 │   ├── evaluation/
@@ -719,14 +913,15 @@ This project is designed as a portfolio-scale simulation of an enterprise foreca
 
 Important limitations include:
 
-- The current API primarily scores model-ready dates available in the processed feature dataset.
+- The current API primarily scores model-ready dates already available in the processed feature dataset.
 - True recursive multi-step future forecasting is not yet implemented.
 - Pricing recommendations are scenario-based rather than causal estimates.
 - Historical price elasticity can be difficult to estimate for products with limited price variation.
 - Fallback elasticity is required when sufficient historical evidence is unavailable.
 - Simulated revenue improvement should not be interpreted as guaranteed real-world revenue improvement.
 - Large datasets and trained model binaries are intentionally excluded from the GitHub repository.
-- Production deployment would require additional monitoring, security, scaling, and model-governance infrastructure.
+- The current portfolio implementation uses a limited product/store feature subset for the deployed forecasting application.
+- Production deployment would require additional monitoring, security, scaling, model governance, and controlled business experimentation.
 
 ---
 
@@ -746,6 +941,8 @@ Potential extensions include:
 - Authentication and API security
 - Additional stores and product coverage
 - More extensive hyperparameter optimization
+- Forecast monitoring dashboards
+- Automated model/version registry
 
 ---
 
@@ -764,7 +961,9 @@ Feature engineering
 Time-series forecasting
 Machine learning
 Model evaluation
+Rolling-origin backtesting
 Dynamic pricing
+Price elasticity analysis
 API development
 Dashboard development
 Automated testing
