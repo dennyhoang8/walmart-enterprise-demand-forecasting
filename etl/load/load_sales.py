@@ -1,7 +1,8 @@
 # ================================
 # 1. IMPORT TOOLS
 # Load tools for file paths, Pandas,
-# SQL commands, and database connections.
+# SQL commands, database connections,
+# and our sales transformation.
 # ================================
 
 from pathlib import Path
@@ -10,12 +11,13 @@ import pandas as pd
 from sqlalchemy import text
 
 from etl.database import get_engine
+from etl.transform.transform_sales import transform_sales
 
 
 # ================================
 # 2. FIND RAW DATA FILES
-# Find the project root and point Python
-# to the raw Walmart sales and calendar CSVs.
+# Point Python to the raw M5
+# sales and calendar CSV files.
 # ================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -27,8 +29,8 @@ CALENDAR_FILE = RAW_DATA_DIR / "calendar.csv"
 
 # ================================
 # 3. LIST ALL WALMART STORES
-# Store the IDs of all 10 M5 stores
-# that need to be processed and loaded.
+# These are the 10 stores that
+# need to be processed.
 # ================================
 
 STORES = [
@@ -47,32 +49,27 @@ STORES = [
 
 # ================================
 # 4. CLEAR OLD SALES DATA
-# Empty fact_sales before loading fresh data
-# so previous rows are not duplicated.
+# Remove old rows before loading
+# the fresh transformed data.
 # ================================
 
 def clear_fact_sales() -> None:
 
-    # Connect to PostgreSQL.
     engine = get_engine()
 
-    # Open a database transaction.
     with engine.begin() as connection:
-
-        # Remove all rows from fact_sales.
         connection.execute(
             text("TRUNCATE TABLE fact_sales;")
         )
 
-    # Confirm the table was cleared.
     print("Cleared fact_sales.")
 
 
 # ================================
 # 5. LOAD SALES FOR ONE STORE
-# Take the full sales dataset, keep one store,
-# reshape it, attach dates, validate it,
-# and load it into fact_sales.
+# Send the M5 data to transform_sales(),
+# receive the transformed fact_sales data,
+# validate it, and load it to PostgreSQL.
 # ================================
 
 def load_sales_for_store(
@@ -81,116 +78,26 @@ def load_sales_for_store(
     store_id: str,
 ) -> None:
 
-    # Show which store is currently being processed.
     print(f"\nProcessing store: {store_id}")
 
 
     # ================================
-    # 5A. FILTER TO ONE STORE
-    # Keep only rows belonging to the current store.
+    # 5A. TRANSFORM
+    # Pass the actual M5 sales data,
+    # calendar data, and store ID into
+    # transform_sales.py.
     # ================================
 
-    store_sales = sales.loc[
-        sales["store_id"] == store_id
-    ].copy()
-
-
-    # ================================
-    # 5B. DEFINE IDENTIFIER COLUMNS
-    # These columns identify the product and store
-    # and should stay as columns during melt.
-    # ================================
-
-    id_columns = [
-        "item_id",
-        "store_id",
-    ]
-
-
-    # ================================
-    # 5C. FIND ALL DAILY SALES COLUMNS
-    # Keep every column whose name starts with "d_"
-    # such as d_1, d_2, d_3, etc.
-    # ================================
-
-    day_columns = [
-        column
-        for column in store_sales.columns
-        if column.startswith("d_")
-    ]
-
-
-    # ================================
-    # 5D. RESHAPE SALES FROM WIDE TO LONG
-    # Turn thousands of d_ columns into rows
-    # with one "d" column and one "units_sold" column.
-    # ================================
-
-    long_sales = store_sales.melt(
-        id_vars=id_columns,
-        value_vars=day_columns,
-        var_name="d",
-        value_name="units_sold",
+    fact_sales = transform_sales(
+        sales=sales,
+        calendar=calendar,
+        store_id=store_id,
     )
 
 
     # ================================
-    # 5E. ATTACH REAL CALENDAR DATES
-    # Match each d_ value such as d_1 or d_500
-    # to the real calendar date.
-    # ================================
-
-    long_sales = long_sales.merge(
-        calendar,
-        on="d",
-        how="left",
-        validate="many_to_one",
-    )
-
-
-    # ================================
-    # 5F. CONVERT DATE FORMAT
-    # Make sure the date column is stored
-    # as proper date values.
-    # ================================
-
-    long_sales["date"] = pd.to_datetime(
-        long_sales["date"]
-    ).dt.date
-
-
-    # ================================
-    # 5G. BUILD FINAL FACT TABLE FORMAT
-    # Keep only the columns that belong
-    # in fact_sales.
-    # ================================
-
-    fact_sales = long_sales[
-        [
-            "date",
-            "item_id",
-            "store_id",
-            "units_sold",
-        ]
-    ].copy()
-
-
-    # ================================
-    # 5H. VALIDATE DATES
-    # Stop if any sales row failed
-    # to match to a real calendar date.
-    # ================================
-
-    if fact_sales["date"].isna().any():
-        raise ValueError(
-            f"{store_id}: Some sales rows "
-            f"could not be matched to a date."
-        )
-
-
-    # ================================
-    # 5I. VALIDATE SALES VALUES
-    # Stop if any units_sold value is negative.
+    # 5B. CHECK SALES VALUES
+    # Sales should never be negative.
     # ================================
 
     if (fact_sales["units_sold"] < 0).any():
@@ -200,9 +107,9 @@ def load_sales_for_store(
 
 
     # ================================
-    # 5J. CHECK FOR DUPLICATE SALES KEYS
-    # A row should be unique for:
-    # date + item + store.
+    # 5C. CHECK FOR DUPLICATES
+    # Each date + item + store
+    # combination should be unique.
     # ================================
 
     duplicate_count = fact_sales.duplicated(
@@ -213,8 +120,6 @@ def load_sales_for_store(
         ]
     ).sum()
 
-
-    # Stop if duplicate fact rows exist.
     if duplicate_count > 0:
         raise ValueError(
             f"{store_id}: Found "
@@ -223,9 +128,9 @@ def load_sales_for_store(
 
 
     # ================================
-    # 5K. LOAD TO POSTGRESQL
-    # Connect to the database and insert
-    # this store's fact_sales rows.
+    # 5D. LOAD TO POSTGRESQL
+    # Insert the transformed sales data
+    # into the fact_sales table.
     # ================================
 
     engine = get_engine()
@@ -239,8 +144,6 @@ def load_sales_for_store(
         method="multi",
     )
 
-
-    # Confirm how many rows were loaded.
     print(
         f"Loaded {len(fact_sales):,} sales rows "
         f"for store {store_id}."
@@ -249,25 +152,22 @@ def load_sales_for_store(
 
 # ================================
 # 6. LOAD SALES FOR ALL STORES
-# Read the raw datasets once,
-# then process each store one at a time.
+# Read the raw M5 files once,
+# then process each store.
 # ================================
 
 def load_all_sales() -> None:
 
-    # Show that the large Walmart sales file
-    # is being read.
     print("Reading Walmart sales dataset...")
 
 
-    # Read the full raw sales CSV.
+    # Read M5 sales CSV.
     sales = pd.read_csv(
         SALES_FILE
     )
 
 
-    # Read only the calendar columns needed
-    # to match d_ values to real dates.
+    # Read M5 calendar CSV.
     calendar = pd.read_csv(
         CALENDAR_FILE,
         usecols=[
@@ -277,18 +177,18 @@ def load_all_sales() -> None:
     )
 
 
-    # Clear old fact_sales data first.
+    # Clear existing database data.
     clear_fact_sales()
 
 
-    # Count how many stores will be processed.
+    # Count stores.
     total_stores = len(STORES)
 
 
     # ================================
-    # 6A. LOOP THROUGH EVERY STORE
-    # Process CA_1, CA_2, ..., WI_3
-    # one store at a time.
+    # 6A. LOOP THROUGH STORES
+    # Each loop sends one store ID
+    # into load_sales_for_store().
     # ================================
 
     for index, store_id in enumerate(
@@ -296,14 +196,19 @@ def load_all_sales() -> None:
         start=1,
     ):
 
-        # Show progress before starting the store.
         print(
             f"\n[{index}/{total_stores}] "
             f"Starting {store_id}"
         )
 
 
-        # Process and load this store's sales.
+        # ================================
+        # THIS IS WHERE THE DATA IS PASSED
+        # sales = actual M5 sales DataFrame
+        # calendar = actual M5 calendar DataFrame
+        # store_id = CA_1, CA_2, etc.
+        # ================================
+
         load_sales_for_store(
             sales=sales,
             calendar=calendar,
@@ -311,14 +216,12 @@ def load_all_sales() -> None:
         )
 
 
-        # Show progress after the store is finished.
         print(
             f"[{index}/{total_stores}] "
             f"Finished {store_id}"
         )
 
 
-    # Confirm all stores finished successfully.
     print(
         "\nAll Walmart stores loaded successfully."
     )
@@ -326,8 +229,8 @@ def load_all_sales() -> None:
 
 # ================================
 # 7. RUN THE SALES LOAD PIPELINE
-# When this file is run directly,
-# load sales for every Walmart store.
+# Start the process when this
+# file is run directly.
 # ================================
 
 if __name__ == "__main__":

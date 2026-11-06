@@ -1,7 +1,6 @@
 # ================================
 # 1. IMPORT TOOLS
-# Load Pandas so we can work with
-# and transform the sales DataFrame.
+# Load Pandas for transforming data.
 # ================================
 
 import pandas as pd
@@ -9,9 +8,9 @@ import pandas as pd
 
 # ================================
 # 2. TRANSFORM SALES DATA
-# Take the raw M5 sales data for one store,
-# reshape it from wide to long format,
-# attach real dates, and prepare it for fact_sales.
+# Create the transformation function.
+# sales, calendar, and store_id will receive
+# the actual data later when this function is called.
 # ================================
 
 def transform_sales(
@@ -19,16 +18,12 @@ def transform_sales(
     calendar: pd.DataFrame,
     store_id: str,
 ) -> pd.DataFrame:
-    """
-    Transform M5 sales data from wide format into
-    warehouse-ready long format for one store.
-    """
 
 
     # ================================
     # 3. CHECK REQUIRED SALES COLUMNS
-    # These columns must exist before
-    # the sales transformation can run.
+    # Make sure item_id and store_id exist.
+    # Stop with an error if either is missing.
     # ================================
 
     required_sales_columns = [
@@ -50,8 +45,7 @@ def transform_sales(
 
     # ================================
     # 4. CHECK REQUIRED CALENDAR COLUMNS
-    # We need d to match the M5 day columns
-    # and date to obtain the real calendar date.
+    # Make sure d and date exist in calendar data.
     # ================================
 
     required_calendar_columns = [
@@ -73,16 +67,14 @@ def transform_sales(
 
     # ================================
     # 5. FILTER TO ONE STORE
-    # Keep only the sales rows that belong
-    # to the current store being processed.
+    # Keep only sales for the store being processed.
+    # Example: CA_1
     # ================================
 
     store_sales = sales.loc[
         sales["store_id"] == store_id
     ].copy()
 
-
-    # Make sure the requested store exists.
     if store_sales.empty:
         raise ValueError(
             f"No sales data found for store_id: {store_id}"
@@ -91,8 +83,8 @@ def transform_sales(
 
     # ================================
     # 6. DEFINE ID COLUMNS
-    # These identify the product and store
-    # and stay as columns during the melt.
+    # Keep item_id and store_id as identifiers
+    # when reshaping the data.
     # ================================
 
     id_columns = [
@@ -103,8 +95,8 @@ def transform_sales(
 
     # ================================
     # 7. FIND DAY COLUMNS
-    # Find every daily sales column such as
-    # d_1, d_2, d_3, ..., d_1913.
+    # Find M5 columns such as:
+    # d_1, d_2, d_3, etc.
     # ================================
 
     day_columns = [
@@ -113,8 +105,6 @@ def transform_sales(
         if column.startswith("d_")
     ]
 
-
-    # Make sure daily sales columns were found.
     if not day_columns:
         raise ValueError(
             "No M5 day columns were found."
@@ -122,9 +112,12 @@ def transform_sales(
 
 
     # ================================
-    # 8. RESHAPE WIDE DATA TO LONG DATA
-    # Turn d_1, d_2, d_3... from separate
-    # columns into rows.
+    # 8. RESHAPE WIDE TO LONG
+    # Turn the d_ columns into rows.
+    #
+    # Creates:
+    # d = day ID
+    # units_sold = sales amount
     # ================================
 
     long_sales = store_sales.melt(
@@ -137,8 +130,7 @@ def transform_sales(
 
     # ================================
     # 9. CONVERT SALES TO NUMERIC
-    # Notebook 01 showed historical sales
-    # are numeric and non-negative.
+    # Make sure units_sold contains numbers.
     # ================================
 
     long_sales["units_sold"] = pd.to_numeric(
@@ -148,9 +140,9 @@ def transform_sales(
 
 
     # ================================
-    # 10. ATTACH REAL CALENDAR DATES
-    # Match each d_* identifier to the
-    # corresponding real calendar date.
+    # 10. ATTACH REAL DATES
+    # Match d_1, d_2, etc. to their
+    # actual dates from calendar.csv.
     # ================================
 
     calendar_lookup = calendar[
@@ -169,9 +161,9 @@ def transform_sales(
 
 
     # ================================
-    # 11. CHECK CALENDAR MATCHES
-    # Every sales day should successfully
-    # match a calendar date.
+    # 11. CHECK DATE MATCHES
+    # Stop if any sales day could not
+    # be matched to a real date.
     # ================================
 
     missing_dates = long_sales["date"].isna().sum()
@@ -185,8 +177,7 @@ def transform_sales(
 
     # ================================
     # 12. CONVERT DATE FORMAT
-    # Convert date into proper Python
-    # date values.
+    # Convert date into proper date values.
     # ================================
 
     long_sales["date"] = pd.to_datetime(
@@ -196,9 +187,9 @@ def transform_sales(
 
 
     # ================================
-    # 13. BUILD FINAL FACT_SALES FORMAT
-    # Keep only the columns required
-    # by the fact_sales database table.
+    # 13. BUILD FINAL FACT_SALES DATA
+    # Keep only the columns needed
+    # for the fact_sales database table.
     # ================================
 
     fact_sales = long_sales[
@@ -212,9 +203,8 @@ def transform_sales(
 
 
     # ================================
-    # 14. RETURN TRANSFORMED SALES
-    # Give the finished fact_sales DataFrame
-    # back to the load script.
+    # 14. RETURN TRANSFORMED DATA
+    # Send fact_sales back to load_sales.py.
     # ================================
 
     return fact_sales
