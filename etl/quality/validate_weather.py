@@ -1,16 +1,6 @@
-# ================================
-# 1. SHOW CURRENT FILE LOCATION
-# Print the path of the Python file that
-# is currently being executed.
-# ================================
-
-print(__file__)
-
 
 # ================================
-# 2. IMPORT TOOLS
-# Load our database connection function
-# and SQLAlchemy's tool for running SQL commands.
+# 1. IMPORT TOOLS
 # ================================
 
 from etl.database import get_engine
@@ -18,101 +8,124 @@ from sqlalchemy import text
 
 
 # ================================
-# 3. VALIDATE WEATHER DATA
-# Check the fact_weather table in PostgreSQL
-# for missing keys and impossible weather values.
+# 2. VALIDATE WEATHER DATA
+# Check fact_weather after loading.
 # ================================
 
 def validate_weather() -> None:
 
-    # Connect to PostgreSQL.
     engine = get_engine()
 
-
     # ================================
-    # 4. CREATE VALIDATION CHECKS
-    # Store each validation test as:
-    # check name → SQL query.
-    # Each query counts how many problems exist.
+    # 3. DEFINE VALIDATION CHECKS
+    # Each SQL query counts invalid records.
     # ================================
 
     checks = {
 
-        # Count weather rows that are missing
-        # either a date or state ID.
-        "missing_weather_keys": """
+        # Check missing required values.
+        "missing_weather_values": """
             SELECT COUNT(*)
             FROM fact_weather
             WHERE date IS NULL
-               OR state_id IS NULL;
+               OR state_id IS NULL
+               OR temperature_max IS NULL
+               OR temperature_min IS NULL
+               OR precipitation IS NULL
+               OR snowfall IS NULL
+               OR wind_speed_max IS NULL;
         """,
 
-        # Count weather rows where
-        # precipitation is below zero.
+        # Check negative precipitation.
         "negative_precipitation": """
             SELECT COUNT(*)
             FROM fact_weather
             WHERE precipitation < 0;
         """,
 
-        # Count weather rows where
-        # snowfall is below zero.
+        # Check negative snowfall.
         "negative_snowfall": """
             SELECT COUNT(*)
             FROM fact_weather
             WHERE snowfall < 0;
+        """,
+
+        # Check negative wind speeds.
+        "negative_wind_speed": """
+            SELECT COUNT(*)
+            FROM fact_weather
+            WHERE wind_speed_max < 0;
+        """,
+
+        # Check inconsistent temperatures.
+        "invalid_temperature_range": """
+            SELECT COUNT(*)
+            FROM fact_weather
+            WHERE temperature_max < temperature_min;
+        """,
+
+        # Check duplicate state-date combinations.
+        "duplicate_weather_keys": """
+            SELECT COALESCE(
+                SUM(duplicate_count - 1), 0
+            )
+            FROM (
+                SELECT COUNT(*) AS duplicate_count
+                FROM fact_weather
+                GROUP BY date, state_id
+                HAVING COUNT(*) > 1
+            ) AS duplicates;
         """
     }
 
-
     # ================================
-    # 5. CONNECT TO THE DATABASE
-    # Open a connection so Python can run
-    # each SQL validation query.
+    # 4. CONNECT TO POSTGRESQL
     # ================================
 
     with engine.connect() as connection:
 
+        # Confirm the table contains data.
+        total_rows = connection.execute(
+            text("SELECT COUNT(*) FROM fact_weather;")
+        ).scalar_one()
+
+        if total_rows == 0:
+            raise ValueError(
+                "fact_weather is empty. No weather data was loaded."
+            )
+
+        print(f"Total weather rows: {total_rows:,}")
 
         # ================================
-        # 6. RUN EVERY VALIDATION CHECK
-        # Loop through the checks dictionary
-        # and run each SQL query one at a time.
+        # 5. RUN VALIDATION CHECKS
         # ================================
 
         for name, sql in checks.items():
 
-            # Run the SQL query and get
-            # the single number returned by COUNT(*).
             result = connection.execute(
                 text(sql)
-            ).scalar()
-
+            ).scalar_one()
 
             # ================================
-            # 7. CHECK THE RESULT
-            # Every validation query should return 0.
-            # Anything else means bad data exists.
+            # 6. CHECK EACH RESULT
             # ================================
 
             if result != 0:
-
-                # Stop the program and show
-                # which validation check failed.
                 raise ValueError(
-                    f"{name} failed: {result}"
+                    f"FAIL: {name} - {result:,} invalid records."
                 )
 
-
-            # If result equals 0,
-            # this validation check passed.
             print(f"PASS: {name}")
+
+    # ================================
+    # 7. CONFIRM COMPLETION
+    # ================================
+
+    print("All weather validation checks passed.")
 
 
 # ================================
-# 8. RUN THE VALIDATION SCRIPT
-# When this file is run directly,
-# run all weather validation checks.
+# 8. RUN VALIDATION SCRIPT
 # ================================
 
 if __name__ == "__main__":

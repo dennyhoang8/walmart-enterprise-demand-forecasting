@@ -1,7 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load Pandas so we can work with
-# and transform DataFrames.
 # ================================
 
 import pandas as pd
@@ -9,27 +8,21 @@ import pandas as pd
 
 # ================================
 # 2. TRANSFORM PRODUCT DATA
-# Take product information from the
-# raw M5 sales DataFrame and prepare
-# one row per product for dim_product.
+# Prepare one row per product.
 # ================================
 
 def transform_products(
     sales: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Transform raw M5 product information into
-    the warehouse-ready dim_product format.
-    """
 
+    # Define required columns.
     required_columns = [
         "item_id",
         "dept_id",
         "cat_id",
     ]
 
-    # Make sure the source contains the columns
-    # required to build dim_product.
+    # Check for missing columns.
     missing_columns = [
         column
         for column in required_columns
@@ -41,12 +34,7 @@ def transform_products(
             f"Missing product columns: {missing_columns}"
         )
 
-    # Sales contains repeated product information
-    # because the same product appears across stores.
-    #
-    # Keep only the product hierarchy columns and
-    # collapse those repeated rows into one row
-    # per unique product.
+    # Select required columns and remove duplicates.
     products = (
         sales[required_columns]
         .drop_duplicates()
@@ -54,31 +42,37 @@ def transform_products(
         .reset_index(drop=True)
     )
 
+    # Check for missing values.
+    if products.isnull().any().any():
+        raise ValueError(
+            "Product data contains missing values."
+        )
+
+    # Each product ID must appear only once.
+    if products["item_id"].duplicated().any():
+        raise ValueError(
+            "Duplicate product IDs found."
+        )
+
     return products
 
 
 # ================================
 # 3. TRANSFORM STORE DATA
-# Take store information from the
-# raw M5 sales DataFrame and prepare
-# one row per store for dim_store.
+# Prepare one row per store.
 # ================================
 
 def transform_stores(
     sales: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Transform raw M5 store information into
-    the warehouse-ready dim_store format.
-    """
 
+    # Define required columns.
     required_columns = [
         "store_id",
         "state_id",
     ]
 
-    # Make sure the source contains the columns
-    # required to build dim_store.
+    # Check for missing columns.
     missing_columns = [
         column
         for column in required_columns
@@ -90,11 +84,7 @@ def transform_stores(
             f"Missing store columns: {missing_columns}"
         )
 
-    # Sales contains repeated store information
-    # because many products belong to the same store.
-    #
-    # Keep only the store columns and collapse
-    # those repeated rows into one row per store.
+    # Select required columns and remove duplicates.
     stores = (
         sales[required_columns]
         .drop_duplicates()
@@ -102,23 +92,31 @@ def transform_stores(
         .reset_index(drop=True)
     )
 
+    # Check for missing values.
+    if stores.isnull().any().any():
+        raise ValueError(
+            "Store data contains missing values."
+        )
+
+    # Each store ID must appear only once.
+    if stores["store_id"].duplicated().any():
+        raise ValueError(
+            "Duplicate store IDs found."
+        )
+
     return stores
 
 
 # ================================
 # 4. TRANSFORM CALENDAR DATA
-# Take the raw M5 calendar DataFrame
-# and prepare it for dim_calendar.
+# Prepare M5 calendar for PostgreSQL.
 # ================================
 
 def transform_calendar(
     calendar: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Transform the raw M5 calendar into
-    the warehouse-ready dim_calendar format.
-    """
 
+    # Define required columns.
     required_columns = [
         "date",
         "wm_yr_wk",
@@ -136,8 +134,7 @@ def transform_calendar(
         "snap_WI",
     ]
 
-    # Confirm the calendar schema before
-    # applying transformations.
+    # Check for missing columns.
     missing_columns = [
         column
         for column in required_columns
@@ -149,19 +146,22 @@ def transform_calendar(
             f"Missing calendar columns: {missing_columns}"
         )
 
-    # Work on a copy so the original
-    # DataFrame is not modified.
-    calendar = calendar.copy()
+    # Select required columns.
+    calendar = calendar[required_columns].copy()
 
-    # Notebook 01 showed that date is loaded
-    # as text, so convert it to a real date.
+    # ================================
+    # 5. CONVERT DATE FORMAT
+    # ================================
+
     calendar["date"] = pd.to_datetime(
         calendar["date"],
         errors="raise",
     ).dt.date
 
-    # Rename SNAP columns so they match
-    # PostgreSQL naming conventions.
+    # ================================
+    # 6. RENAME SNAP COLUMNS
+    # ================================
+
     calendar = calendar.rename(
         columns={
             "snap_CA": "snap_ca",
@@ -170,18 +170,87 @@ def transform_calendar(
         }
     )
 
-    # SNAP is stored as 0/1 in the raw source.
-    # Convert those indicators to booleans.
-    for column in [
+    # ================================
+    # 7. VALIDATE SNAP VALUES
+    # SNAP indicators must be 0 or 1.
+    # ================================
+
+    snap_columns = [
         "snap_ca",
         "snap_tx",
         "snap_wi",
-    ]:
+    ]
+
+    for column in snap_columns:
+
+        calendar[column] = pd.to_numeric(
+            calendar[column],
+            errors="raise",
+        )
+
+        if not calendar[column].isin([0, 1]).all():
+            raise ValueError(
+                f"Invalid SNAP values in {column}."
+            )
+
         calendar[column] = calendar[column].astype(bool)
 
-    # Important:
-    # event_name/event_type nulls are expected
-    # and should remain null. They represent
-    # dates with no corresponding special event.
+    # ================================
+    # 8. VALIDATE REQUIRED VALUES
+    # Event columns may contain nulls.
+    # ================================
+
+    required_non_null = [
+        "date",
+        "wm_yr_wk",
+        "weekday",
+        "wday",
+        "month",
+        "year",
+        "d",
+        "snap_ca",
+        "snap_tx",
+        "snap_wi",
+    ]
+
+    if calendar[required_non_null].isnull().any().any():
+        raise ValueError(
+            "Calendar contains missing required values."
+        )
+
+    # ================================
+    # 9. CONVERT NUMERIC COLUMNS
+    # ================================
+
+    numeric_columns = [
+        "wm_yr_wk",
+        "wday",
+        "month",
+        "year",
+    ]
+
+    for column in numeric_columns:
+        calendar[column] = pd.to_numeric(
+            calendar[column],
+            errors="raise",
+        ).astype("int64")
+
+    # ================================
+    # 10. CHECK DUPLICATE CALENDAR KEYS
+    # ================================
+
+    if calendar["date"].duplicated().any():
+        raise ValueError(
+            "Duplicate calendar dates found."
+        )
+
+    if calendar["d"].duplicated().any():
+        raise ValueError(
+            "Duplicate calendar day IDs found."
+        )
+
+    # ================================
+    # 11. RETURN TRANSFORMED DATA
+    # ================================
 
     return calendar

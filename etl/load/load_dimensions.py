@@ -1,8 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load tools for file paths, Pandas,
-# SQL commands, database connection,
-# and our transformation functions.
 # ================================
 
 from pathlib import Path
@@ -20,161 +18,187 @@ from etl.transform.transform_dimensions import (
 
 # ================================
 # 2. FIND THE RAW DATA FOLDER
-# Find the main project folder, then point
-# to the folder that contains the raw CSV files.
 # ================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
+SALES_FILE = RAW_DATA_DIR / "sales_train_evaluation.csv"
+CALENDAR_FILE = RAW_DATA_DIR / "calendar.csv"
+
 
 # ================================
-# 3. LOAD PRODUCT DATA
-# Read product columns from the sales CSV,
-# transform them, then load them into dim_product.
+# 3. READ AND TRANSFORM DIMENSIONS
 # ================================
 
-def load_products() -> None:
+def prepare_dimensions():
 
-    # Read only the columns needed for products.
+    # Confirm the CSV files exist.
+    for file in [SALES_FILE, CALENDAR_FILE]:
+        if not file.exists():
+            raise FileNotFoundError(
+                f"Required file not found: {file}"
+            )
+
+    # Read only the required sales columns.
+    print("Reading Walmart dimension data...")
+
     sales = pd.read_csv(
-        RAW_DATA_DIR / "sales_train_evaluation.csv",
+        SALES_FILE,
         usecols=[
             "item_id",
             "dept_id",
             "cat_id",
-        ],
-    )
-
-    # Clean/organize the product data.
-    products = transform_products(sales)
-
-    # Connect to PostgreSQL.
-    engine = get_engine()
-
-    # Load the product DataFrame into dim_product.
-    products.to_sql(
-        "dim_product",
-        engine,
-        if_exists="append",
-        index=False,
-        method="multi",
-    )
-
-    # Show how many product rows were loaded.
-    print(f"Loaded {len(products):,} products.")
-
-
-# ================================
-# 4. LOAD STORE DATA
-# Read store columns from the sales CSV,
-# transform them, then load them into dim_store.
-# ================================
-
-def load_stores() -> None:
-
-    # Read only the columns needed for stores.
-    sales = pd.read_csv(
-        RAW_DATA_DIR / "sales_train_evaluation.csv",
-        usecols=[
             "store_id",
             "state_id",
         ],
     )
 
-    # Clean/organize the store data.
+    calendar = pd.read_csv(CALENDAR_FILE)
+
+    # Transform each dimension.
+    print("Transforming dimension data...")
+
+    products = transform_products(sales)
     stores = transform_stores(sales)
-
-    # Connect to PostgreSQL.
-    engine = get_engine()
-
-    # Load the store DataFrame into dim_store.
-    stores.to_sql(
-        "dim_store",
-        engine,
-        if_exists="append",
-        index=False,
-        method="multi",
-    )
-
-    # Show how many store rows were loaded.
-    print(f"Loaded {len(stores):,} stores.")
-
-
-# ================================
-# 5. LOAD CALENDAR DATA
-# Read the calendar CSV, transform it,
-# then load it into dim_calendar.
-# ================================
-
-def load_calendar() -> None:
-
-    # Read the raw calendar CSV.
-    calendar = pd.read_csv(
-        RAW_DATA_DIR / "calendar.csv"
-    )
-
-    # Clean/organize the calendar data.
     calendar = transform_calendar(calendar)
 
-    # Connect to PostgreSQL.
-    engine = get_engine()
+    # Prevent empty datasets.
+    for name, data in [
+        ("products", products),
+        ("stores", stores),
+        ("calendar", calendar),
+    ]:
+        if data.empty:
+            raise ValueError(
+                f"{name} dataset is empty."
+            )
 
-    # Load the calendar DataFrame into dim_calendar.
-    calendar.to_sql(
-        "dim_calendar",
-        engine,
-        if_exists="append",
-        index=False,
-        method="multi",
-    )
-
-    # Show how many calendar rows were loaded.
-    print(
-        f"Loaded {len(calendar):,} calendar rows."
-    )
+    return products, stores, calendar
 
 
 # ================================
-# 6. CLEAR OLD DIMENSION DATA
-# Empty the dimension tables before reloading them
-# so duplicate rows are not created.
+# 4. LOAD DIMENSIONS SAFELY
+# Insert new records and update existing
+# records without deleting fact tables.
 # ================================
 
-def clear_dimension_tables() -> None:
+def load_dimensions() -> None:
 
-    # Connect to PostgreSQL.
+    products, stores, calendar = prepare_dimensions()
+
     engine = get_engine()
 
-    # Start a database transaction.
+    print("Loading dimensions into PostgreSQL...")
+
+    # Use one transaction for all changes.
     with engine.begin() as connection:
 
-        # Run SQL that clears all 3 dimension tables.
-        connection.execute(
-            text(
-                """
-                TRUNCATE TABLE
-                    dim_calendar,
-                    dim_store,
-                    dim_product
-                RESTART IDENTITY CASCADE;
-                """
-            )
+        # ================================
+        # 5. LOAD PRODUCT DIMENSION
+        # ================================
+
+        products.to_sql(
+            "_stage_dim_product",
+            connection,
+            if_exists="replace",
+            index=False,
+            method="multi",
         )
 
-    # Confirm that the old data was removed.
-    print("Cleared dimension tables.")
+        connection.execute(text("""
+            INSERT INTO dim_product (
+                item_id, dept_id, cat_id
+            )
+            SELECT item_id, dept_id, cat_id
+            FROM _stage_dim_product
+            ON CONFLICT (item_id)
+            DO UPDATE SET
+                dept_id = EXCLUDED.dept_id,
+                cat_id = EXCLUDED.cat_id;
+        """))
+
+        # ================================
+        # 6. LOAD STORE DIMENSION
+        # ================================
+
+        stores.to_sql(
+            "_stage_dim_store",
+            connection,
+            if_exists="replace",
+            index=False,
+            method="multi",
+        )
+
+        connection.execute(text("""
+            INSERT INTO dim_store (
+                store_id, state_id
+            )
+            SELECT store_id, state_id
+            FROM _stage_dim_store
+            ON CONFLICT (store_id)
+            DO UPDATE SET
+                state_id = EXCLUDED.state_id;
+        """))
+
+        # ================================
+        # 7. LOAD CALENDAR DIMENSION
+        # ================================
+
+        calendar.to_sql(
+            "_stage_dim_calendar",
+            connection,
+            if_exists="replace",
+            index=False,
+            method="multi",
+        )
+
+        columns = list(calendar.columns)
+
+        # Quote column names for SQL.
+        column_sql = ", ".join(
+            f'"{column}"' for column in columns
+        )
+
+        # Update every column except the date key.
+        update_sql = ", ".join(
+            f'"{column}" = EXCLUDED."{column}"'
+            for column in columns
+            if column != "date"
+        )
+
+        connection.execute(text(f"""
+            INSERT INTO dim_calendar ({column_sql})
+            SELECT {column_sql}
+            FROM _stage_dim_calendar
+            ON CONFLICT (date)
+            DO UPDATE SET {update_sql};
+        """))
+
+        # ================================
+        # 8. REMOVE STAGING TABLES
+        # ================================
+
+        connection.execute(text("""
+            DROP TABLE _stage_dim_product;
+            DROP TABLE _stage_dim_store;
+            DROP TABLE _stage_dim_calendar;
+        """))
+
+    # ================================
+    # 9. CONFIRM COMPLETION
+    # ================================
+
+    print(f"Processed {len(products):,} products.")
+    print(f"Processed {len(stores):,} stores.")
+    print(f"Processed {len(calendar):,} calendar rows.")
+
+    print("Dimension ETL completed successfully.")
 
 
 # ================================
-# 7. RUN THE LOAD PIPELINE
-# When this file is run directly:
-# clear old dimension data first,
-# then load products, stores, and calendar.
+# 10. RUN DIMENSION LOAD PIPELINE
 # ================================
 
 if __name__ == "__main__":
-    clear_dimension_tables()
-    load_products()
-    load_stores()
-    load_calendar()
+    load_dimensions()

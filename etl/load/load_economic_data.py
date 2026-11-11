@@ -1,8 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load tools for file paths, Pandas,
-# SQL commands, database connections,
-# and economic-data transformation.
 # ================================
 
 from pathlib import Path
@@ -16,8 +14,6 @@ from etl.transform.transform_economic import transform_economic
 
 # ================================
 # 2. FIND THE FRED CSV FILE
-# Find the main project folder and point
-# to the extracted FRED economic CSV.
 # ================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -31,9 +27,7 @@ FRED_FILE = (
 
 
 # ================================
-# 3. CREATE ECONOMIC SERIES METADATA
-# Build a small DataFrame that describes
-# each economic series we are using.
+# 3. DEFINE ECONOMIC SERIES METADATA
 # ================================
 
 SERIES_METADATA = pd.DataFrame(
@@ -61,155 +55,139 @@ SERIES_METADATA = pd.DataFrame(
 
 
 # ================================
-# 4. CLEAR OLD ECONOMIC DATA
-# Empty the economic dimension and fact tables
-# before loading fresh data.
-# ================================
-
-def clear_economic_tables() -> None:
-
-    # Connect to PostgreSQL.
-    engine = get_engine()
-
-    # Start a database transaction.
-    with engine.begin() as connection:
-
-        # Run SQL that removes old economic data.
-        connection.execute(
-            text(
-                """
-                TRUNCATE TABLE
-                    fact_economic_indicator,
-                    dim_economic_series
-                CASCADE;
-                """
-            )
-        )
-
-    # Confirm that the tables were cleared.
-    print("Cleared economic tables.")
-
-
-# ================================
-# 5. LOAD ECONOMIC SERIES DIMENSION
-# Load the descriptive information about each
-# economic series into dim_economic_series.
-# ================================
-
-def load_economic_series() -> None:
-
-    # Connect to PostgreSQL.
-    engine = get_engine()
-
-    # Load the metadata DataFrame
-    # into the economic series dimension table.
-    SERIES_METADATA.to_sql(
-        "dim_economic_series",
-        engine,
-        if_exists="append",
-        index=False,
-        method="multi",
-    )
-
-    # Show how many series were loaded.
-    print(
-        f"Loaded {len(SERIES_METADATA):,} economic series."
-    )
-
-
-# ================================
-# 6. VALIDATE ECONOMIC DATA
-# Check the transformed economic data for
-# missing IDs, bad dates, and duplicates.
+# 4. VALIDATE ECONOMIC DATA
 # ================================
 
 def validate_economic_data(
     economic_data: pd.DataFrame,
 ) -> None:
 
-    # Check whether any series IDs are missing.
-    if economic_data["series_id"].isnull().any():
+    # Check for missing values.
+    if economic_data.isnull().any().any():
         raise ValueError(
-            "Missing series IDs found."
+            "Economic data contains missing values."
         )
 
-    # Check whether any observation dates are missing/invalid.
-    if economic_data["observation_date"].isnull().any():
-        raise ValueError(
-            "Invalid observation dates found."
-        )
-
-    # Count duplicate rows based on
-    # series ID + observation date.
+    # Check for duplicate records.
     duplicate_count = economic_data.duplicated(
-        subset=[
-            "series_id",
-            "observation_date",
-        ]
+        subset=["series_id", "observation_date"]
     ).sum()
 
-    # Stop the program if duplicate records exist.
     if duplicate_count > 0:
         raise ValueError(
-            f"Found {duplicate_count:,} "
-            f"duplicate economic records."
+            f"Found {duplicate_count:,} duplicate economic records."
+        )
+
+    # Check for unexpected series IDs.
+    valid_series = set(SERIES_METADATA["series_id"])
+
+    invalid_series = set(
+        economic_data["series_id"]
+    ) - valid_series
+
+    if invalid_series:
+        raise ValueError(
+            f"Unknown economic series: {sorted(invalid_series)}"
         )
 
 
 # ================================
-# 7. LOAD ECONOMIC INDICATORS
-# Read the extracted FRED CSV, transform it,
-# validate it, and load it into the fact table.
+# 5. LOAD ECONOMIC DATA
+# Read, transform, validate, and load.
 # ================================
 
-def load_economic_indicators() -> None:
+def load_economic_data() -> None:
 
-    # Read the extracted FRED CSV into Pandas.
-    economic_data = pd.read_csv(
-        FRED_FILE
-    )
+    # Confirm the CSV file exists.
+    if not FRED_FILE.exists():
+        raise FileNotFoundError(
+            f"FRED file not found: {FRED_FILE}"
+        )
 
-    # Transform the raw FRED data into
-    # the format expected by PostgreSQL.
+    # Read the FRED CSV.
+    print("Reading FRED economic dataset...")
+
+    economic_data = pd.read_csv(FRED_FILE)
+
+    # Transform the economic data.
+    print("Transforming economic data...")
+
     economic_data = transform_economic(
         economic_data
     )
 
-    # Check the transformed data for problems
-    # before loading it into the database.
+    # Validate before changing PostgreSQL.
+    print("Validating economic data...")
+
     validate_economic_data(
         economic_data
     )
 
+    if economic_data.empty:
+        raise ValueError(
+            "Economic dataset is empty."
+        )
+
     # Connect to PostgreSQL.
     engine = get_engine()
 
-    # Load the economic observations into
-    # the fact_economic_indicator table.
-    economic_data.to_sql(
-        "fact_economic_indicator",
-        engine,
-        if_exists="append",
-        index=False,
-        chunksize=5000,
-        method="multi",
+    # ================================
+    # 6. REPLACE ECONOMIC TABLE DATA
+    # Clear and reload within one transaction.
+    # ================================
+
+    print("Loading economic data into PostgreSQL...")
+
+    with engine.begin() as connection:
+
+        # Clear the fact and dimension tables.
+        connection.execute(
+            text(
+                """
+                TRUNCATE TABLE
+                    fact_economic_indicator,
+                    dim_economic_series;
+                """
+            )
+        )
+
+        # Load series metadata first.
+        SERIES_METADATA.to_sql(
+            "dim_economic_series",
+            connection,
+            if_exists="append",
+            index=False,
+            method="multi",
+        )
+
+        # Load economic observations second.
+        economic_data.to_sql(
+            "fact_economic_indicator",
+            connection,
+            if_exists="append",
+            index=False,
+            chunksize=5000,
+            method="multi",
+        )
+
+    # ================================
+    # 7. CONFIRM COMPLETION
+    # ================================
+
+    print(
+        f"Loaded {len(SERIES_METADATA):,} economic series."
     )
 
-    # Show how many observations were loaded.
     print(
-        f"Loaded {len(economic_data):,} "
-        f"economic observations."
+        f"Loaded {len(economic_data):,} economic observations."
     )
+
+    print("Economic ETL completed successfully.")
 
 
 # ================================
-# 8. RUN THE ECONOMIC LOAD PIPELINE
-# When this file is run directly:
-# clear old data, load series metadata,
-# then load the actual economic observations.
+# 8. RUN ECONOMIC LOAD PIPELINE
 # ================================
 
 if __name__ == "__main__":
-    clear_economic_tables()
-    load_economic_series()
-    load_economic_indicators()
+    load_economic_data()

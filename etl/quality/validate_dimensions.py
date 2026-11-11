@@ -1,7 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load our database connection function
-# and SQLAlchemy's tool for running SQL text.
 # ================================
 
 from etl.database import get_engine
@@ -10,116 +9,161 @@ from sqlalchemy import text
 
 # ================================
 # 2. VALIDATE DIMENSION TABLES
-# Check the dimension tables in PostgreSQL
-# for missing keys and duplicate keys.
+# Check PostgreSQL after loading.
 # ================================
 
 def validate_dimensions() -> None:
 
-    # Connect to PostgreSQL.
     engine = get_engine()
 
-
     # ================================
-    # 3. CREATE VALIDATION CHECKS
-    # Store each validation test as:
-    # check name → SQL query
+    # 3. DEFINE VALIDATION CHECKS
+    # Each query counts invalid records.
     # ================================
 
     checks = {
 
-        # Count products that are missing item_id.
-        "dim_product_null_keys": """
+        # Check missing product values.
+        "missing_product_values": """
             SELECT COUNT(*)
             FROM dim_product
-            WHERE item_id IS NULL;
+            WHERE item_id IS NULL
+               OR dept_id IS NULL
+               OR cat_id IS NULL;
         """,
 
-        # Count stores that are missing store_id.
-        "dim_store_null_keys": """
+        # Check missing store values.
+        "missing_store_values": """
             SELECT COUNT(*)
             FROM dim_store
-            WHERE store_id IS NULL;
+            WHERE store_id IS NULL
+               OR state_id IS NULL;
         """,
 
-        # Count calendar rows that are missing dates.
-        "dim_calendar_null_dates": """
+        # Check missing required calendar values.
+        # Event names/types may be NULL.
+        "missing_calendar_values": """
             SELECT COUNT(*)
             FROM dim_calendar
-            WHERE date IS NULL;
+            WHERE date IS NULL
+               OR wm_yr_wk IS NULL
+               OR weekday IS NULL
+               OR wday IS NULL
+               OR month IS NULL
+               OR year IS NULL
+               OR d IS NULL
+               OR snap_ca IS NULL
+               OR snap_tx IS NULL
+               OR snap_wi IS NULL;
         """,
 
-        # Count item IDs that appear more than once.
-        "dim_product_duplicates": """
-            SELECT COUNT(*)
+        # Check duplicate product IDs.
+        "duplicate_product_keys": """
+            SELECT COALESCE(
+                SUM(duplicate_count - 1), 0
+            )
             FROM (
-                SELECT item_id
+                SELECT COUNT(*) AS duplicate_count
                 FROM dim_product
                 GROUP BY item_id
                 HAVING COUNT(*) > 1
-            ) x;
+            ) AS duplicates;
         """,
 
-        # Count store IDs that appear more than once.
-        "dim_store_duplicates": """
-            SELECT COUNT(*)
+        # Check duplicate store IDs.
+        "duplicate_store_keys": """
+            SELECT COALESCE(
+                SUM(duplicate_count - 1), 0
+            )
             FROM (
-                SELECT store_id
+                SELECT COUNT(*) AS duplicate_count
                 FROM dim_store
                 GROUP BY store_id
                 HAVING COUNT(*) > 1
-            ) x;
+            ) AS duplicates;
         """,
+
+        # Check duplicate calendar dates.
+        "duplicate_calendar_dates": """
+            SELECT COALESCE(
+                SUM(duplicate_count - 1), 0
+            )
+            FROM (
+                SELECT COUNT(*) AS duplicate_count
+                FROM dim_calendar
+                GROUP BY date
+                HAVING COUNT(*) > 1
+            ) AS duplicates;
+        """,
+
+        # Check duplicate calendar day IDs.
+        "duplicate_calendar_day_ids": """
+            SELECT COALESCE(
+                SUM(duplicate_count - 1), 0
+            )
+            FROM (
+                SELECT COUNT(*) AS duplicate_count
+                FROM dim_calendar
+                GROUP BY d
+                HAVING COUNT(*) > 1
+            ) AS duplicates;
+        """
     }
 
-
     # ================================
-    # 4. CONNECT TO DATABASE
-    # Open a connection so Python can run
-    # each SQL validation query.
+    # 4. CONNECT TO POSTGRESQL
     # ================================
 
     with engine.connect() as connection:
 
+        # Confirm all three tables contain data.
+        for table_name in [
+            "dim_product",
+            "dim_store",
+            "dim_calendar",
+        ]:
+
+            total_rows = connection.execute(
+                text(f"SELECT COUNT(*) FROM {table_name};")
+            ).scalar_one()
+
+            if total_rows == 0:
+                raise ValueError(
+                    f"{table_name} is empty."
+                )
+
+            print(f"{table_name}: {total_rows:,} rows")
 
         # ================================
-        # 5. LOOP THROUGH EVERY CHECK
-        # Take each check name and SQL query
-        # from the checks dictionary.
+        # 5. RUN VALIDATION CHECKS
         # ================================
 
         for name, sql in checks.items():
 
-            # Run the SQL query and get
-            # the single number it returns.
             result = connection.execute(
                 text(sql)
-            ).scalar()
-
+            ).scalar_one()
 
             # ================================
-            # 6. CHECK THE RESULT
-            # Every validation query should return 0.
-            # Anything above 0 means bad data exists.
+            # 6. CHECK EACH RESULT
             # ================================
 
             if result != 0:
-
-                # Stop the program and report
-                # which validation test failed.
                 raise ValueError(
-                    f"{name} failed: {result}"
+                    f"FAIL: {name} - {result:,} invalid records."
                 )
 
-
-            # If result was 0, the test passed.
             print(f"PASS: {name}")
+
+    # ================================
+    # 7. CONFIRM COMPLETION
+    # ================================
+
+    print("All dimension validation checks passed.")
 
 
 # ================================
-# 7. RUN THE VALIDATION SCRIPT
-# When this file is run directly,
-# run all dimension validation checks.
+# 8. RUN VALIDATION SCRIPT
 # ================================
 
 if __name__ == "__main__":

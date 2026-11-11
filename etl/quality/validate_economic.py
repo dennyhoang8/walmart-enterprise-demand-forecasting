@@ -1,7 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load our database connection function
-# and SQLAlchemy's tool for running SQL commands.
 # ================================
 
 from etl.database import get_engine
@@ -10,104 +9,125 @@ from sqlalchemy import text
 
 # ================================
 # 2. VALIDATE ECONOMIC DATA
-# Check the economic fact table in PostgreSQL
-# for missing IDs, missing dates, and duplicates.
+# Check PostgreSQL after loading.
 # ================================
 
 def validate_economic() -> None:
 
-    # Connect to PostgreSQL.
     engine = get_engine()
 
-
     # ================================
-    # 3. CREATE VALIDATION CHECKS
-    # Store each validation test as:
-    # check name → SQL query.
-    # Each query counts how many problems exist.
+    # 3. DEFINE VALIDATION CHECKS
+    # Each query counts invalid records.
     # ================================
 
     checks = {
 
-        # Count economic rows that are
-        # missing a series ID.
-        "missing_series_ids": """
+        # Check missing required values.
+        "missing_economic_values": """
             SELECT COUNT(*)
             FROM fact_economic_indicator
-            WHERE series_id IS NULL;
+            WHERE series_id IS NULL
+               OR observation_date IS NULL
+               OR value IS NULL;
         """,
 
-        # Count economic rows that are
-        # missing an observation date.
-        "missing_observation_dates": """
-            SELECT COUNT(*)
-            FROM fact_economic_indicator
-            WHERE observation_date IS NULL;
-        """,
-
-        # Count duplicate economic records.
-        # Each series should only have ONE
-        # observation for each observation date.
+        # Check duplicate series-date combinations.
         "duplicate_economic_keys": """
-            SELECT COUNT(*)
+            SELECT COALESCE(
+                SUM(duplicate_count - 1), 0
+            )
             FROM (
-                SELECT series_id, observation_date
+                SELECT COUNT(*) AS duplicate_count
                 FROM fact_economic_indicator
                 GROUP BY series_id, observation_date
                 HAVING COUNT(*) > 1
-            ) x;
+            ) AS duplicates;
+        """,
+
+        # Check for economic series without metadata.
+        "unknown_series_ids": """
+            SELECT COUNT(*)
+            FROM fact_economic_indicator AS f
+            LEFT JOIN dim_economic_series AS d
+                ON f.series_id = d.series_id
+            WHERE d.series_id IS NULL;
+        """,
+
+        # Check for non-finite numeric values.
+        "invalid_economic_values": """
+            SELECT COUNT(*)
+            FROM fact_economic_indicator
+            WHERE value::text IN (
+                'NaN', 'Infinity', '-Infinity'
+            );
         """
     }
 
-
     # ================================
-    # 4. CONNECT TO THE DATABASE
-    # Open a connection so Python can run
-    # the SQL validation queries.
+    # 4. CONNECT TO POSTGRESQL
     # ================================
 
     with engine.connect() as connection:
 
+        # Confirm economic observations exist.
+        total_rows = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM fact_economic_indicator;"
+            )
+        ).scalar_one()
+
+        if total_rows == 0:
+            raise ValueError(
+                "fact_economic_indicator is empty."
+            )
+
+        print(f"Total economic observations: {total_rows:,}")
+
+        # Confirm economic series metadata exists.
+        series_count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM dim_economic_series;"
+            )
+        ).scalar_one()
+
+        if series_count == 0:
+            raise ValueError(
+                "dim_economic_series is empty."
+            )
+
+        print(f"Total economic series: {series_count:,}")
 
         # ================================
-        # 5. RUN EVERY VALIDATION CHECK
-        # Loop through the checks dictionary
-        # and run each SQL query one at a time.
+        # 5. RUN VALIDATION CHECKS
         # ================================
 
         for name, sql in checks.items():
 
-            # Run the SQL query and get
-            # the single number returned by COUNT(*).
             result = connection.execute(
                 text(sql)
-            ).scalar()
-
+            ).scalar_one()
 
             # ================================
-            # 6. CHECK THE RESULT
-            # Every validation query should return 0.
-            # Anything other than 0 means bad data exists.
+            # 6. CHECK EACH RESULT
             # ================================
 
             if result != 0:
-
-                # Stop the program and show
-                # which validation check failed.
                 raise ValueError(
-                    f"{name} failed: {result}"
+                    f"FAIL: {name} - {result:,} invalid records."
                 )
 
-
-            # If result equals 0,
-            # this validation check passed.
             print(f"PASS: {name}")
+
+    # ================================
+    # 7. CONFIRM COMPLETION
+    # ================================
+
+    print("All economic validation checks passed.")
 
 
 # ================================
-# 7. RUN THE VALIDATION SCRIPT
-# When this file is run directly,
-# run all economic-data validation checks.
+# 8. RUN VALIDATION SCRIPT
 # ================================
 
 if __name__ == "__main__":

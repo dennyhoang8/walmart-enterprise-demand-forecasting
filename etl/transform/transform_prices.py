@@ -1,32 +1,20 @@
-# ================================
-# 1. IMPORT TOOLS
-# Load Pandas so we can work with
-# and transform the price DataFrame.
-# ================================
 
 import pandas as pd
 
 
-# ================================
-# 2. TRANSFORM PRICE DATA
-# Take the raw M5 sell price data
-# and prepare it for fact_prices.
-# ================================
+# ==========================================
+# 1. DEFINE PRICE TRANSFORMATION FUNCTION
+# Receives raw price data from load_prices.py.
+# Returns a cleaned DataFrame for PostgreSQL.
+# ==========================================
 
-def transform_prices(
-    prices: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Transform raw M5 price data into the
-    warehouse-ready fact_prices format.
-    """
+def transform_prices(prices: pd.DataFrame) -> pd.DataFrame:
 
-
-    # ================================
-    # 3. DEFINE REQUIRED COLUMNS
-    # These columns must exist before
-    # transformation can continue.
-    # ================================
+    # ==========================================
+    # 2. VALIDATE REQUIRED COLUMNS
+    # Make sure the CSV contains the columns
+    # needed for the fact_prices table.
+    # ==========================================
 
     required_columns = [
         "store_id",
@@ -34,13 +22,6 @@ def transform_prices(
         "wm_yr_wk",
         "sell_price",
     ]
-
-
-    # ================================
-    # 4. CHECK REQUIRED COLUMNS
-    # Stop early if the source schema changes
-    # and an expected column is missing.
-    # ================================
 
     missing_columns = [
         column
@@ -53,23 +34,19 @@ def transform_prices(
             f"Missing price columns: {missing_columns}"
         )
 
+    # ==========================================
+    # 3. SELECT REQUIRED COLUMNS
+    # Keep only the columns needed and create
+    # a separate copy of the DataFrame.
+    # ==========================================
 
-    # ================================
-    # 5. KEEP ONLY NEEDED COLUMNS
-    # Select only the columns required
-    # by fact_prices and make a copy.
-    # ================================
+    prices = prices[required_columns].copy()
 
-    prices = prices[
-        required_columns
-    ].copy()
-
-
-    # ================================
-    # 6. CONVERT DATA TYPES
-    # Make sure numeric warehouse fields
-    # are stored using numeric types.
-    # ================================
+    # ==========================================
+    # 4. STANDARDIZE DATA TYPES
+    # Convert week IDs to integers and
+    # selling prices to numeric values.
+    # ==========================================
 
     prices["wm_yr_wk"] = pd.to_numeric(
         prices["wm_yr_wk"],
@@ -81,11 +58,45 @@ def transform_prices(
         errors="raise",
     )
 
+    # ==========================================
+    # 5. VALIDATE MISSING VALUES
+    # Reject records with missing required data.
+    # ==========================================
 
-    # ================================
-    # 7. RETURN TRANSFORMED DATA
-    # Give the finished price DataFrame
-    # back to the code that called this function.
-    # ================================
+    if prices[required_columns].isna().any().any():
+        raise ValueError(
+            "Price data contains missing values."
+        )
+
+    # ==========================================
+    # 6. VALIDATE SELLING PRICES
+    # Selling prices must be greater than zero.
+    # ==========================================
+
+    if (prices["sell_price"] <= 0).any():
+        raise ValueError(
+            "Price data contains zero or negative prices."
+        )
+
+    # ==========================================
+    # 7. VALIDATE DUPLICATE RECORDS
+    # Each store, item, and week combination
+    # should have only one selling price.
+    # ==========================================
+
+    duplicate_count = prices.duplicated(
+        subset=["store_id", "item_id", "wm_yr_wk"]
+    ).sum()
+
+    if duplicate_count > 0:
+        raise ValueError(
+            f"Found {duplicate_count:,} duplicate price records."
+        )
+
+    # ==========================================
+    # 8. RETURN TRANSFORMED DATA
+    # Send the finished DataFrame back to
+    # the function that called transform_prices().
+    # ==========================================
 
     return prices

@@ -1,115 +1,121 @@
-# ================================
+
+# ==========================================
 # 1. IMPORT TOOLS
-# Load our database connection function
-# and SQLAlchemy's tool for running SQL commands.
-# ================================
+# Import the database connection function
+# and SQLAlchemy's SQL text utility.
+# ==========================================
 
 from etl.database import get_engine
 from sqlalchemy import text
 
 
-# ================================
-# 2. VALIDATE PRICE DATA
+# ==========================================
+# 2. DEFINE PRICE VALIDATION FUNCTION
 # Check the fact_prices table in PostgreSQL
-# for bad prices, duplicates, and missing keys.
-# ================================
+# after the pricing ETL has finished loading.
+# ==========================================
 
 def validate_prices() -> None:
 
-    # Connect to PostgreSQL.
+    # Get the PostgreSQL database engine.
     engine = get_engine()
 
-
-    # ================================
-    # 3. CREATE VALIDATION CHECKS
-    # Store each validation test as:
-    # check name → SQL query.
-    # Each query counts how many problems exist.
-    # ================================
+    # ==========================================
+    # 3. DEFINE SQL VALIDATION CHECKS
+    # Each query counts problematic records.
+    # A successful check must return zero.
+    # ==========================================
 
     checks = {
 
-        # Count prices that are zero or negative.
+        # Check for zero or negative selling prices.
         "negative_or_zero_prices": """
             SELECT COUNT(*)
             FROM fact_prices
             WHERE sell_price <= 0;
         """,
 
-        # Count duplicate price records.
-        # One price row should be unique for:
-        # store + item + Walmart year/week.
-        "duplicate_price_keys": """
-            SELECT COUNT(*)
-            FROM (
-                SELECT store_id, item_id, wm_yr_wk
-                FROM fact_prices
-                GROUP BY store_id, item_id, wm_yr_wk
-                HAVING COUNT(*) > 1
-            ) x;
-        """,
-
-        # Count rows where one of the important
-        # price keys is missing.
-        "missing_price_keys": """
+        # Check for missing required values.
+        "missing_price_values": """
             SELECT COUNT(*)
             FROM fact_prices
             WHERE store_id IS NULL
                OR item_id IS NULL
-               OR wm_yr_wk IS NULL;
+               OR wm_yr_wk IS NULL
+               OR sell_price IS NULL;
+        """,
+
+        # Count extra duplicate records.
+        # Each store-item-week combination
+        # should appear only once.
+        "duplicate_price_keys": """
+            SELECT COALESCE(
+                SUM(duplicate_count - 1), 0
+            )
+            FROM (
+                SELECT COUNT(*) AS duplicate_count
+                FROM fact_prices
+                GROUP BY store_id, item_id, wm_yr_wk
+                HAVING COUNT(*) > 1
+            ) AS duplicates;
         """
     }
 
-
-    # ================================
-    # 4. CONNECT TO THE DATABASE
-    # Open a connection so Python can run
-    # the SQL validation checks.
-    # ================================
+    # ==========================================
+    # 4. CONNECT TO POSTGRESQL
+    # Open a connection to execute SQL queries.
+    # ==========================================
 
     with engine.connect() as connection:
 
+        # First, confirm the table contains data.
+        total_rows = connection.execute(
+            text("SELECT COUNT(*) FROM fact_prices;")
+        ).scalar_one()
 
-        # ================================
-        # 5. RUN EVERY VALIDATION CHECK
-        # Loop through the checks dictionary
-        # and run each SQL query one at a time.
-        # ================================
+        if total_rows == 0:
+            raise ValueError(
+                "fact_prices is empty. No price data was loaded."
+            )
+
+        print(f"Total price rows: {total_rows:,}")
+
+        # ==========================================
+        # 5. RUN ALL VALIDATION CHECKS
+        # Loop through the dictionary of SQL tests.
+        # ==========================================
 
         for name, sql in checks.items():
 
-            # Run the SQL query and get
-            # the single number returned by COUNT(*).
+            # Execute SQL and retrieve its count.
             result = connection.execute(
                 text(sql)
-            ).scalar()
+            ).scalar_one()
 
-
-            # ================================
-            # 6. CHECK THE RESULT
-            # Every validation query should return 0.
-            # Anything else means bad data exists.
-            # ================================
+            # ==========================================
+            # 6. VALIDATE EACH RESULT
+            # Zero means no problems were found.
+            # ==========================================
 
             if result != 0:
-
-                # Stop the program and show
-                # which validation test failed.
                 raise ValueError(
-                    f"{name} failed: {result}"
+                    f"FAIL: {name} - {result:,} invalid records."
                 )
 
-
-            # If result equals 0,
-            # this check passed.
             print(f"PASS: {name}")
 
+    # ==========================================
+    # 7. CONFIRM COMPLETION
+    # All validation checks passed.
+    # ==========================================
 
-# ================================
-# 7. RUN THE VALIDATION SCRIPT
-# When this file is run directly,
-# run all price validation checks.
-# ================================
+    print("All price validation checks passed.")
+
+
+# ==========================================
+# 8. START THE VALIDATION SCRIPT
+# Execute when run as the main Python module.
+# ==========================================
 
 if __name__ == "__main__":
     validate_prices()

@@ -1,7 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load Pandas so we can work with
-# and transform the economic DataFrame.
 # ================================
 
 import pandas as pd
@@ -9,22 +8,15 @@ import pandas as pd
 
 # ================================
 # 2. TRANSFORM ECONOMIC DATA
-# Take the extracted FRED economic data
-# and prepare it for fact_economic_indicator.
+# Prepare FRED data for PostgreSQL.
 # ================================
 
 def transform_economic(
     economic_data: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Transform raw FRED economic data into the
-    warehouse-ready fact_economic_indicator format.
-    """
 
     # ================================
     # 3. DEFINE REQUIRED COLUMNS
-    # These columns must exist in the extracted
-    # FRED data before transformation can continue.
     # ================================
 
     required_columns = [
@@ -33,11 +25,8 @@ def transform_economic(
         "series_id",
     ]
 
-
     # ================================
     # 4. CHECK REQUIRED COLUMNS
-    # Stop early with a clear error if the
-    # extracted FRED schema changes.
     # ================================
 
     missing_columns = [
@@ -51,20 +40,14 @@ def transform_economic(
             f"Missing economic columns: {missing_columns}"
         )
 
-
     # ================================
-    # 5. COPY THE DATA
-    # Work on a separate DataFrame so the
-    # original extracted data is not modified.
+    # 5. COPY REQUIRED COLUMNS
     # ================================
 
-    economic_data = economic_data.copy()
-
+    economic_data = economic_data[required_columns].copy()
 
     # ================================
     # 6. CONVERT VALUE TO NUMERIC
-    # Notebook 01 showed value is already numeric,
-    # but this makes the transform more robust.
     # ================================
 
     economic_data["value"] = pd.to_numeric(
@@ -72,11 +55,8 @@ def transform_economic(
         errors="raise",
     )
 
-
     # ================================
-    # 7. RENAME THE DATE COLUMN
-    # Change "date" to "observation_date"
-    # so it matches the database table.
+    # 7. RENAME DATE COLUMN
     # ================================
 
     economic_data = economic_data.rename(
@@ -85,11 +65,8 @@ def transform_economic(
         }
     )
 
-
     # ================================
-    # 8. CONVERT TO PROPER DATE FORMAT
-    # Convert observation_date into real
-    # date values instead of leaving it as text.
+    # 8. CONVERT DATE FORMAT
     # ================================
 
     economic_data["observation_date"] = pd.to_datetime(
@@ -97,26 +74,43 @@ def transform_economic(
         errors="raise",
     ).dt.date
 
-
     # ================================
-    # 9. KEEP ONLY NEEDED COLUMNS
-    # Select only the columns that belong
-    # in fact_economic_indicator.
+    # 9. KEEP FINAL COLUMNS
     # ================================
 
-    economic_data = economic_data[
-        [
-            "series_id",
-            "observation_date",
-            "value",
-        ]
-    ].copy()
+    expected_columns = [
+        "series_id",
+        "observation_date",
+        "value",
+    ]
 
+    economic_data = economic_data[expected_columns].copy()
 
     # ================================
-    # 10. RETURN TRANSFORMED DATA
-    # Give the finished economic DataFrame
-    # back to the code that called this function.
+    # 10. CHECK MISSING VALUES
+    # ================================
+
+    if economic_data.isnull().any().any():
+        raise ValueError(
+            "Economic data contains missing values."
+        )
+
+    # ================================
+    # 11. CHECK DUPLICATE RECORDS
+    # Each series should have one value per date.
+    # ================================
+
+    duplicate_count = economic_data.duplicated(
+        subset=["series_id", "observation_date"]
+    ).sum()
+
+    if duplicate_count > 0:
+        raise ValueError(
+            f"Found {duplicate_count} duplicate economic records."
+        )
+
+    # ================================
+    # 12. RETURN TRANSFORMED DATA
     # ================================
 
     return economic_data

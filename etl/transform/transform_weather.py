@@ -1,7 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load Pandas so we can work with
-# and transform the weather DataFrame.
 # ================================
 
 import pandas as pd
@@ -9,23 +8,15 @@ import pandas as pd
 
 # ================================
 # 2. TRANSFORM WEATHER DATA
-# Take the raw Open-Meteo weather data
-# and prepare it for fact_weather.
+# Prepare Open-Meteo data for fact_weather.
 # ================================
 
 def transform_weather(
     weather: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Transform raw weather API data into the
-    warehouse-ready fact_weather format.
-    """
-
 
     # ================================
     # 3. DEFINE REQUIRED COLUMNS
-    # These columns must exist in the
-    # extracted weather dataset.
     # ================================
 
     required_columns = [
@@ -38,11 +29,8 @@ def transform_weather(
         "state_id",
     ]
 
-
     # ================================
     # 4. CHECK REQUIRED COLUMNS
-    # Stop early if the extracted weather
-    # schema changes or a column is missing.
     # ================================
 
     missing_columns = [
@@ -56,20 +44,16 @@ def transform_weather(
             f"Missing weather columns: {missing_columns}"
         )
 
-
     # ================================
     # 5. COPY THE DATA
-    # Work on a separate copy so the
-    # original DataFrame is not modified.
+    # Avoid modifying the original DataFrame.
     # ================================
 
-    weather = weather.copy()
-
+    weather = weather[required_columns].copy()
 
     # ================================
     # 6. RENAME WEATHER COLUMNS
-    # Change the original API column names
-    # into simpler database column names.
+    # Match PostgreSQL column names.
     # ================================
 
     weather = weather.rename(
@@ -83,11 +67,8 @@ def transform_weather(
         }
     )
 
-
     # ================================
     # 7. CONVERT DATE FORMAT
-    # Convert the weather date from text
-    # into a proper Python date value.
     # ================================
 
     weather["date"] = pd.to_datetime(
@@ -95,11 +76,8 @@ def transform_weather(
         errors="raise",
     ).dt.date
 
-
     # ================================
     # 8. CONVERT WEATHER VALUES TO NUMERIC
-    # Make sure all weather measurements are
-    # stored using numeric data types.
     # ================================
 
     numeric_columns = [
@@ -116,11 +94,8 @@ def transform_weather(
             errors="raise",
         )
 
-
     # ================================
     # 9. DEFINE FINAL COLUMNS
-    # These are the exact columns required
-    # by fact_weather.
     # ================================
 
     expected_columns = [
@@ -133,21 +108,64 @@ def transform_weather(
         "wind_speed_max",
     ]
 
-
     # ================================
     # 10. KEEP ONLY NEEDED COLUMNS
-    # Select the warehouse-ready columns.
     # ================================
 
-    weather = weather[
-        expected_columns
-    ].copy()
-
+    weather = weather[expected_columns].copy()
 
     # ================================
-    # 11. RETURN TRANSFORMED DATA
-    # Give the finished weather DataFrame
-    # back to the code that called this function.
+    # 11. CHECK MISSING VALUES
+    # ================================
+
+    if weather.isnull().any().any():
+        raise ValueError(
+            "Weather data contains missing values."
+        )
+
+    # ================================
+    # 12. CHECK DUPLICATE RECORDS
+    # Each state should have one record per date.
+    # ================================
+
+    duplicate_count = weather.duplicated(
+        subset=["date", "state_id"]
+    ).sum()
+
+    if duplicate_count > 0:
+        raise ValueError(
+            f"Found {duplicate_count} duplicate weather records."
+        )
+
+    # ================================
+    # 13. CHECK INVALID WEATHER VALUES
+    # ================================
+
+    if (weather["precipitation"] < 0).any():
+        raise ValueError(
+            "Weather data contains negative precipitation."
+        )
+
+    if (weather["snowfall"] < 0).any():
+        raise ValueError(
+            "Weather data contains negative snowfall."
+        )
+
+    if (weather["wind_speed_max"] < 0).any():
+        raise ValueError(
+            "Weather data contains negative wind speeds."
+        )
+
+    if (
+        weather["temperature_max"] <
+        weather["temperature_min"]
+    ).any():
+        raise ValueError(
+            "Maximum temperature is below minimum temperature."
+        )
+
+    # ================================
+    # 14. RETURN TRANSFORMED DATA
     # ================================
 
     return weather

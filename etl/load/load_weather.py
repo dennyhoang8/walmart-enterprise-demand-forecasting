@@ -1,8 +1,6 @@
+
 # ================================
 # 1. IMPORT TOOLS
-# Load tools for file paths, Pandas,
-# SQL commands, database connections,
-# and weather-data transformation.
 # ================================
 
 from pathlib import Path
@@ -16,8 +14,6 @@ from etl.transform.transform_weather import transform_weather
 
 # ================================
 # 2. FIND THE WEATHER CSV FILE
-# Find the main project folder and point
-# Python to the extracted weather CSV.
 # ================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -32,109 +28,122 @@ WEATHER_FILE = (
 
 # ================================
 # 3. CLEAR OLD WEATHER DATA
-# Empty fact_weather before loading fresh
-# weather rows so duplicates are not created.
+# Remove existing rows before reloading.
 # ================================
 
 def clear_weather_table() -> None:
 
-    # Connect to PostgreSQL.
     engine = get_engine()
 
-    # Start a database transaction.
     with engine.begin() as connection:
-
-        # Remove all existing rows
-        # from fact_weather.
         connection.execute(
             text("TRUNCATE TABLE fact_weather;")
         )
 
-    # Confirm the table was cleared.
     print("Cleared fact_weather.")
 
 
 # ================================
 # 4. VALIDATE WEATHER DATA
-# Check for invalid dates, missing state IDs,
-# duplicate keys, and impossible negative values.
+# Check transformed data before loading.
 # ================================
 
 def validate_weather(weather: pd.DataFrame) -> None:
 
-    # Check whether any dates are missing.
-    if weather["date"].isnull().any():
+    # Check for missing values.
+    if weather.isnull().any().any():
         raise ValueError(
-            "Weather data contains invalid dates."
+            "Weather data contains missing values."
         )
 
-    # Check whether any state IDs are missing.
-    if weather["state_id"].isnull().any():
-        raise ValueError(
-            "Weather data contains missing state IDs."
-        )
-
-    # Count duplicate rows based on:
-    # date + state_id
+    # Check for duplicate date-state combinations.
     duplicate_count = weather.duplicated(
         subset=["date", "state_id"]
     ).sum()
 
-    # Stop if duplicate weather keys exist.
     if duplicate_count > 0:
         raise ValueError(
             f"Weather data contains "
             f"{duplicate_count} duplicate keys."
         )
 
-    # Ignore missing precipitation values,
-    # then check whether any remaining values
-    # are negative.
-    if (weather["precipitation"].dropna() < 0).any():
+    # Check for negative precipitation.
+    if (weather["precipitation"] < 0).any():
         raise ValueError(
             "Weather data contains negative precipitation."
         )
 
-    # Ignore missing snowfall values,
-    # then check whether any remaining values
-    # are negative.
-    if (weather["snowfall"].dropna() < 0).any():
+    # Check for negative snowfall.
+    if (weather["snowfall"] < 0).any():
         raise ValueError(
             "Weather data contains negative snowfall."
+        )
+
+    # Check for negative wind speeds.
+    if (weather["wind_speed_max"] < 0).any():
+        raise ValueError(
+            "Weather data contains negative wind speeds."
+        )
+
+    # Check for inconsistent temperatures.
+    if (
+        weather["temperature_max"]
+        < weather["temperature_min"]
+    ).any():
+        raise ValueError(
+            "Maximum temperature is below minimum temperature."
         )
 
 
 # ================================
 # 5. LOAD WEATHER DATA
-# Read the weather CSV, transform it,
-# validate it, then load it into fact_weather.
+# Read, transform, validate, and load.
 # ================================
 
 def load_weather() -> None:
 
-    # Read the extracted weather CSV
-    # into a Pandas DataFrame.
+    # Confirm the CSV file exists.
+    if not WEATHER_FILE.exists():
+        raise FileNotFoundError(
+            f"Weather file not found: {WEATHER_FILE}"
+        )
+
+    # Read the weather CSV.
+    print("Reading Walmart weather dataset...")
+
     weather = pd.read_csv(
         WEATHER_FILE
     )
 
-    # Clean and prepare the weather data
-    # for the database.
+    # Transform the weather data.
+    print("Transforming weather data...")
+
     weather = transform_weather(
         weather
     )
 
-    # Check the transformed data
-    # before loading it into PostgreSQL.
+    # Validate the transformed data.
+    print("Validating weather data...")
+
     validate_weather(
         weather
     )
 
+    # Prevent an empty file from clearing the table.
+    if weather.empty:
+        raise ValueError(
+            "Weather dataset is empty."
+        )
+
+    # Clear old data only after validation passes.
+    clear_weather_table()
+
     # Connect to PostgreSQL.
     engine = get_engine()
 
-    # Load the finished weather DataFrame
-    # into the fact_weather table.
+    # Load weather data into PostgreSQL.
+    print("Loading weather into PostgreSQL...")
+
     weather.to_sql(
         "fact_weather",
         engine,
@@ -144,19 +153,17 @@ def load_weather() -> None:
         method="multi",
     )
 
-    # Show how many weather rows were loaded.
+    # Confirm the number of loaded rows.
     print(
         f"Loaded {len(weather):,} weather rows."
     )
 
+    print("Weather ETL completed successfully.")
+
 
 # ================================
 # 6. RUN THE WEATHER LOAD PIPELINE
-# When this file is run directly:
-# clear old weather rows first,
-# then load fresh weather data.
 # ================================
 
 if __name__ == "__main__":
-    clear_weather_table()
     load_weather()
